@@ -11,6 +11,7 @@ interface PreviewProps {
   isGapiReady: boolean;
   isSavingToDrive: boolean;
   isDriveConfigured: boolean;
+  onRetryWithSamePrompt: () => void;
 }
 
 const LoadingSpinner: React.FC = () => {
@@ -39,7 +40,13 @@ const LoadingSpinner: React.FC = () => {
 };
 
 
-const ImageModal: React.FC<{ imageUrl: string; onClose: () => void }> = ({ imageUrl, onClose }) => {
+const ImageModal: React.FC<{ 
+    images: string[];
+    currentIndex: number;
+    onClose: () => void;
+    onNext: () => void;
+    onPrevious: () => void;
+}> = ({ images, currentIndex, onClose, onNext, onPrevious }) => {
     const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -76,7 +83,21 @@ const ImageModal: React.FC<{ imageUrl: string; onClose: () => void }> = ({ image
     
     const handleReset = useCallback(() => setTransform({ scale: 1, x: 0, y: 0 }), []);
 
-    useEffect(() => { handleReset(); }, [imageUrl, handleReset]);
+    useEffect(() => { handleReset(); }, [currentIndex, handleReset]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+            if (images.length > 1) {
+                if (e.key === 'ArrowRight') onNext();
+                if (e.key === 'ArrowLeft') onPrevious();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose, onNext, onPrevious, images.length]);
+
 
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
@@ -127,10 +148,30 @@ const ImageModal: React.FC<{ imageUrl: string; onClose: () => void }> = ({ image
                   className="absolute top-2 right-2 text-white text-4xl hover:text-gray-300 transition-colors z-[52] rounded-full bg-black/50 h-9 w-9 flex items-center justify-center"
                   aria-label="Close"
                 >&times;</button>
+                
+                {images.length > 1 && (
+                    <>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onPrevious(); }}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-4xl hover:text-gray-300 transition-colors z-[52] rounded-full bg-black/50 h-12 w-12 flex items-center justify-center"
+                            aria-label="Previous image"
+                        >
+                            &#8249;
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onNext(); }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-4xl hover:text-gray-300 transition-colors z-[52] rounded-full bg-black/50 h-12 w-12 flex items-center justify-center"
+                            aria-label="Next image"
+                        >
+                            &#8250;
+                        </button>
+                    </>
+                )}
+
                 <img 
                   ref={imageRef}
-                  src={imageUrl} 
-                  alt="Edited" 
+                  src={images[currentIndex]} 
+                  alt={`Edited variation ${currentIndex + 1}`} 
                   className="max-w-full max-h-full object-contain transition-transform duration-100 ease-out rounded-lg shadow-2xl"
                   style={{ transform: `scale(${transform.scale}) translate(${transform.x}px, ${transform.y}px)`, cursor: transform.scale > 1 ? 'grab' : 'default' }}
                   onMouseDown={handleMouseDown}
@@ -154,8 +195,10 @@ const PromptDetails: React.FC<{
     isSignedIn: boolean,
     isGapiReady: boolean,
     isSavingToDrive: boolean,
-    isDriveConfigured: boolean;
-}> = ({ prompt, editedImages, onSaveToDrive, onSignIn, isSignedIn, isGapiReady, isSavingToDrive, isDriveConfigured }) => {
+    isDriveConfigured: boolean,
+    onRetryWithSamePrompt: () => void,
+    isLoading: boolean,
+}> = ({ prompt, editedImages, onSaveToDrive, onSignIn, isSignedIn, isGapiReady, isSavingToDrive, isDriveConfigured, onRetryWithSamePrompt, isLoading }) => {
     const [copyButtonText, setCopyButtonText] = useState('Copy JSON');
     
     const handleCopy = () => {
@@ -197,18 +240,38 @@ const PromptDetails: React.FC<{
         });
     };
 
+    const ButtonSpinner = () => (
+      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+    );
+
+    const isAnyActionInProgress = isLoading || isSavingToDrive;
+
     return (
         <div className="bg-card border border-border rounded-lg animate-fade-in">
             <div className="p-4 sm:p-6 border-b border-border">
                 <div className="flex flex-wrap justify-between items-center gap-4">
                     <h3 className="text-lg font-semibold text-card-foreground">Edit Details</h3>
                     <div className="flex gap-2 flex-wrap">
+                        <button
+                            onClick={onRetryWithSamePrompt}
+                            disabled={isAnyActionInProgress}
+                            className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Generate a new set of images using the exact same prompt and settings."
+                        >
+                            {isLoading ? 'Regenerating...' : 'Regenerate'}
+                        </button>
                         {editedImages && editedImages.length > 1 && (
-                            <button onClick={handleDownloadAll} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">Download All</button>
+                            <button onClick={handleDownloadAll} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">Download All</button>
                         )}
-                        <button onClick={handleCopy} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">{copyButtonText}</button>
+                        <button onClick={handleCopy} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">{copyButtonText}</button>
                         {isGapiReady && (
-                           <button onClick={handleDriveClick} disabled={!editedImages || isSavingToDrive || !isDriveConfigured} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">{getDriveButtonText()}</button>
+                           <button onClick={handleDriveClick} disabled={isAnyActionInProgress || !editedImages || !isDriveConfigured} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background flex items-center justify-center">
+                               {isSavingToDrive && <ButtonSpinner />}
+                               {getDriveButtonText()}
+                           </button>
                         )}
                     </div>
                 </div>
@@ -230,14 +293,26 @@ const PromptDetails: React.FC<{
 };
 
 
-export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, prompt, ...driveProps }) => {
-  const [modalImage, setModalImage] = useState<string | null>(null);
+export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, prompt, onRetryWithSamePrompt, ...driveProps }) => {
+  const [modalImageIndex, setModalImageIndex] = useState<number | null>(null);
 
-  const GridImage: React.FC<{ src: string }> = ({ src }) => (
+  const handleNextImage = () => {
+    if (modalImageIndex !== null && editedImages && editedImages.length > 1) {
+        setModalImageIndex((prevIndex) => (prevIndex! + 1) % editedImages.length);
+    }
+  };
+
+  const handlePreviousImage = () => {
+    if (modalImageIndex !== null && editedImages && editedImages.length > 1) {
+        setModalImageIndex((prevIndex) => (prevIndex! - 1 + editedImages.length) % editedImages.length);
+    }
+  };
+
+  const GridImage: React.FC<{ src: string; onClick: () => void }> = ({ src, onClick }) => (
     <div className="relative group aspect-square bg-muted rounded-md overflow-hidden">
       <img src={src} alt="Edited variation" className="w-full h-full object-cover" />
       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-        <button onClick={() => setModalImage(src)} className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition" aria-label="Enlarge image">
+        <button onClick={onClick} className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition" aria-label="Enlarge image">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
         </button>
         <a href={src} download={`fotomaydonoz-${new Date().getTime()}.png`} className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition" aria-label="Download image">
@@ -247,11 +322,11 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
     </div>
   );
   
-  const SingleImageView: React.FC<{ src: string }> = ({ src }) => (
+  const SingleImageView: React.FC<{ src: string; onClick: () => void; }> = ({ src, onClick }) => (
     <div className="relative group w-full h-full animate-fade-in flex items-center justify-center">
         <img src={src} alt="Edited result" className="max-w-full max-h-full object-contain rounded-lg" />
         <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => setModalImage(src)} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Enlarge image">
+            <button onClick={onClick} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Enlarge image">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
             </button>
             <a href={src} download={`fotomaydonoz-${new Date().getTime()}.png`} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Download image">
@@ -270,9 +345,9 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
                 {editedImages ? (
                    editedImages.length > 1 ? (
                       <div className="grid grid-cols-2 gap-2 w-full h-full p-2 animate-fade-in">
-                          {editedImages.map((image, index) => <GridImage key={index} src={image} />)}
+                          {editedImages.map((image, index) => <GridImage key={index} src={image} onClick={() => setModalImageIndex(index)} />)}
                       </div>
-                  ) : <SingleImageView src={editedImages[0]} />
+                  ) : <SingleImageView src={editedImages[0]} onClick={() => setModalImageIndex(0)} />
                 ) : (
                     !isLoading && (
                         <div className="text-muted-foreground text-center p-4">
@@ -284,7 +359,13 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
             </div>
         </div>
         
-        {prompt && <PromptDetails prompt={prompt} editedImages={editedImages} {...driveProps} />}
+        {prompt && <PromptDetails 
+            prompt={prompt} 
+            editedImages={editedImages} 
+            onRetryWithSamePrompt={onRetryWithSamePrompt} 
+            isLoading={isLoading} 
+            {...driveProps} 
+        />}
 
         {!prompt && !isLoading && (
           <div className="bg-card border border-border rounded-lg p-8 text-center shadow-sm animate-fade-in">
@@ -293,7 +374,15 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
           </div>
         )}
         
-        {modalImage && <ImageModal imageUrl={modalImage} onClose={() => setModalImage(null)} />}
+        {modalImageIndex !== null && editedImages && (
+            <ImageModal 
+                images={editedImages} 
+                currentIndex={modalImageIndex}
+                onClose={() => setModalImageIndex(null)}
+                onNext={handleNextImage}
+                onPrevious={handlePreviousImage}
+            />
+        )}
     </div>
   );
 };

@@ -1,14 +1,17 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import type { Prompt, ArtisticStyle } from '../types';
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const PROMPT_GENERATION_MODEL = 'gemini-2.5-flash';
 const IMAGE_EDIT_MODEL = 'gemini-2.5-flash-image';
+
+const getAiClient = (apiKey?: string | null): GoogleGenAI => {
+    const finalApiKey = apiKey || process.env.API_KEY;
+    if (!finalApiKey) {
+        throw new Error("API key is not configured. Please provide your own key in the settings or ensure the API_KEY environment variable is set.");
+    }
+    return new GoogleGenAI({ apiKey: finalApiKey });
+};
+
 
 // Fix: Added a responseSchema to enforce a JSON object structure for the response,
 // improving reliability based on Gemini API best practices.
@@ -204,6 +207,12 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
         case 'Abstract Expressionism':
             styleInstruction = `For this request, lean towards an Abstract Expressionist style. Emphasize spontaneous, non-representational creation with a focus on raw emotion and the physical act of art-making. Think Jackson Pollock.`;
             break;
+        case 'Airbrush':
+            styleInstruction = `For this request, emulate the smooth gradients and soft, blended look of airbrush art, popular in 1980s commercial illustration.`;
+            break;
+        case 'Art Deco':
+            styleInstruction = `For this request, lean towards an Art Deco style. Use sleek, geometric shapes, elegant lines, and luxurious, often metallic, materials. Think of 1920s architecture and design.`;
+            break;
         case 'Art Nouveau':
             styleInstruction = `For this request, lean towards an Art Nouveau style. Use long, sinuous, organic lines, floral and plant-inspired motifs, and a decorative, ornamental quality. Think Alphonse Mucha.`;
             break;
@@ -213,26 +222,101 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
         case 'Baroque':
             styleInstruction = `For this request, lean towards a Baroque style. Create scenes with dramatic intensity, rich, deep color, and strong contrasts of light and shadow. Think Caravaggio or Rembrandt.`;
             break;
+        case 'Bauhaus':
+            styleInstruction = `For this request, lean towards a Bauhaus style. Focus on functionality, geometric purity, and a minimalist aesthetic that combines fine arts and crafts. Think Wassily Kandinsky or Paul Klee.`;
+            break;
+        case 'Biopunk':
+            styleInstruction = `For this request, lean towards a Biopunk style. Explore themes of genetic engineering and biological enhancement, often with organic, unsettling, and futuristic imagery.`;
+            break;
+        case 'Collage':
+            styleInstruction = `For this request, create an image that looks like it's assembled from various different forms, such as paper, photographs, and other found objects.`;
+            break;
         case 'Cubist':
             styleInstruction = `For this request, lean towards a Cubist style. The subject should be analyzed, broken up, and reassembled in an abstracted form—depicting the subject from a multitude of viewpoints. Think Picasso or Braque.`;
+            break;
+        case 'Cyberpunk':
+            styleInstruction = `For this request, lean towards a Cyberpunk style. Focus on a high-tech, low-life future with neon lights, cybernetics, and a dark, dystopian atmosphere. Think Blade Runner.`;
+            break;
+        case 'Dieselpunk':
+            styleInstruction = `For this request, lean towards a Dieselpunk style. Combine the aesthetics of the 1920s-1950s with futuristic technology, featuring diesel-powered machinery and a gritty, industrial feel.`;
+            break;
+        case 'Double Exposure':
+            styleInstruction = `For this request, create an image that looks like two different photographs have been superimposed onto one another, blending scenes and subjects.`;
+            break;
+        case 'Etching':
+            styleInstruction = `For this request, emulate the fine, detailed lines and cross-hatching of an intaglio printmaking process.`;
             break;
         case 'Fantasy Art':
             styleInstruction = `For this request, lean towards a Fantasy Art style. Create scenes with magical or supernatural themes, mythical creatures, and epic, imagined landscapes. Think high fantasy book covers.`;
             break;
+        case 'Fauvism':
+            styleInstruction = `For this request, lean towards Fauvism. Employ intense, non-naturalistic colors and bold brushstrokes to convey emotion directly. Think Henri Matisse.`;
+            break;
+        case 'Folk Art':
+            styleInstruction = `For this request, emulate traditional, often rustic and decorative art styles that reflect a specific community or culture.`;
+            break;
+        case 'Glitch Art':
+            styleInstruction = `For this request, intentionally use digital errors and artifacts for aesthetic purposes, creating fragmented, distorted, and colorful images.`;
+            break;
+        case 'Gothic Art':
+            styleInstruction = `For this request, create a style reminiscent of the medieval period, with dramatic, ornate details, pointed arches, and often religious or dark themes.`;
+            break;
+        case 'Gouache':
+            styleInstruction = `For this request, create the look of opaque watercolor, with flat, vibrant color fields and a matte finish.`;
+            break;
         case 'Impressionistic':
             styleInstruction = `For this request, lean towards an Impressionistic style. Think visible brushstrokes, emphasis on light and its changing qualities, and ordinary subject matter. Like a painting by Monet or Renoir.`;
+            break;
+        case 'Ink Wash Painting':
+            styleInstruction = `For this request, use varying tones of black or colored ink to create a monochromatic, atmospheric painting style similar to traditional East Asian art.`;
             break;
         case 'Line Art':
             styleInstruction = `For this request, lean towards a minimalist Line Art style. The image should be composed of clean, simple lines with minimal shading or color, focusing on form and shape.`;
             break;
+        case 'Lomography':
+            styleInstruction = `For this request, emulate the look of Lomography cameras, with high contrast, saturated colors, vignettes, and unpredictable light leaks.`;
+            break;
         case 'Minimalism':
             styleInstruction = `For this request, lean towards a Minimalist style. Use a limited number of simple elements, clean lines, and negative space to create a powerful effect. Focus on extreme simplicity.`;
+            break;
+        case 'Neoclassicism':
+            styleInstruction = `For this request, adopt the style of ancient Greek and Roman art, emphasizing order, clarity, and idealism. Think Jacques-Louis David.`;
+            break;
+        case 'Pastel Drawing':
+            styleInstruction = `For this request, emulate the soft, blendable texture of pastel sticks, creating a painterly effect with rich, soft colors.`;
             break;
         case 'Pixel Art':
             styleInstruction = `For this request, lean towards a retro Pixel Art style. The concept should be suitable for a 16-bit or 32-bit video game, with clear pixel clusters and a limited color palette.`;
             break;
+        case 'Pop Art':
+            styleInstruction = `For this request, lean towards a Pop Art style. Think bold outlines, bright, saturated colors, and imagery from popular culture. Think Andy Warhol or Roy Lichtenstein.`;
+            break;
+        case 'Post-Impressionism':
+            styleInstruction = `For this request, use vivid colors, thick application of paint, and distinctive brushstrokes, but with a greater emphasis on geometric forms and emotional expression than Impressionism. Think Van Gogh or Cézanne.`;
+            break;
+        case 'Psychedelic':
+            styleInstruction = `For this request, use surreal, abstract imagery, vibrant, distorted colors, and intricate patterns inspired by 1960s counter-culture.`;
+            break;
+        case 'Renaissance':
+            styleInstruction = `For this request, emulate the style of the masters from the 14th-16th centuries, focusing on realism, perspective, and classical themes. Think Leonardo da Vinci or Michelangelo.`;
+            break;
+        case 'Risograph':
+            styleInstruction = `For this request, emulate the look of a Risograph print, with a limited color palette, grainy texture, and characteristic misregistration.`;
+            break;
+        case 'Rococo':
+            styleInstruction = `For this request, create light, ornate, and elaborate scenes with a playful and whimsical tone, often featuring pastel colors and asymmetrical designs. Think Jean-Honoré Fragonard.`;
+            break;
+        case 'Romanticism':
+            styleInstruction = `For this request, emphasize intense emotion, individualism, and the awe-inspiring power of nature. Think Caspar David Friedrich or J.M.W. Turner.`;
+            break;
+        case 'Stained Glass':
+            styleInstruction = `For this request, create an image that looks like it is made from pieces of colored glass held together by lead strips, with bold black outlines and vibrant, translucent colors.`;
+            break;
         case 'Steampunk':
             styleInstruction = `For this request, lean towards a Steampunk style. Combine Victorian-era aesthetics with industrial, steam-powered machinery. Think brass, gears, and intricate clockwork.`;
+            break;
+        case 'Street Art':
+            styleInstruction = `For this request, emulate the style of graffiti, stencils, and murals found in urban environments. Think Banksy or Shepard Fairey.`;
             break;
         case 'Surrealist':
             styleInstruction = `For this request, lean towards a Surrealist style. Create dream-like, bizarre, and illogical scenes. Think of the works of Salvador Dalí or Max Ernst.`;
@@ -240,8 +324,32 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
         case 'Synthwave':
             styleInstruction = `For this request, lean towards a Synthwave style. Think 1980s retrofuturism, neon grids, vibrant pinks and blues, and a nostalgic, electronic feel.`;
             break;
+        case 'Tattoo Art':
+            styleInstruction = `For this request, adopt styles common in tattooing, such as bold outlines, specific shading techniques, and traditional motifs (e.g., American Traditional, Irezumi).`;
+            break;
+        case 'Technical Drawing':
+            styleInstruction = `For this request, emulate the precise, detailed look of a blueprint or technical illustration, with clean lines, annotations, and a focus on structure.`;
+            break;
+        case 'Tribal Art':
+            styleInstruction = `For this request, use bold patterns, symbolic imagery, and natural materials inspired by the artistic traditions of indigenous cultures.`;
+            break;
+        case 'Ukiyo-e':
+            styleInstruction = `For this request, adopt the style of Japanese woodblock prints from the Edo period. Feature flowing outlines, flat areas of color, and subjects from history or daily life. Think Hokusai or Hiroshige.`;
+            break;
+        case 'Vaporwave':
+            styleInstruction = `For this request, create a nostalgic, surrealist aesthetic inspired by 1980s and 1990s internet culture, with classical statues, glitch art, and pastel colors.`;
+            break;
+        case 'Vector Art':
+            styleInstruction = `For this request, create a clean, scalable image with sharp lines, flat colors, and geometric precision, as if made with vector graphics software.`;
+            break;
         case 'Vintage Photo':
             styleInstruction = `For this request, lean towards a vintage photography style. Emulate the look of old film, daguerreotypes, or sepia-toned prints from a specific historical era.`;
+            break;
+        case 'Voxel Art':
+            styleInstruction = `For this request, create a 3D scene that looks like it's built from 3D pixels (voxels), giving it a blocky, retro 3D game aesthetic.`;
+            break;
+        case 'Woodcut Print':
+            styleInstruction = `For this request, create a look with stark contrasts and bold, graphic lines, as if carved from a wooden block.`;
             break;
         case 'Realism':
         default:
@@ -294,8 +402,10 @@ export const generateEditPrompt = async (
     gender: string,
     quality: string = 'standard',
     aspectRatio: string = '1:1',
-    style: ArtisticStyle = 'Realism'
+    style: ArtisticStyle = 'Realism',
+    apiKey?: string | null,
 ): Promise<Prompt> => {
+    const ai = getAiClient(apiKey);
     const response = await ai.models.generateContent({
         model: PROMPT_GENERATION_MODEL,
         contents: getPromptGenerationContent(gender, quality, aspectRatio, style),
@@ -339,9 +449,20 @@ export const editImageWithGemini = async (
     mimeType: string,
     prompt: string,
     quality: string = 'standard',
-    aspectRatio: string = '1:1'
+    aspectRatio: string = '1:1',
+    apiKey?: string | null,
+    removeBackground?: boolean,
 ): Promise<string> => {
-    let finalPrompt = `CRITICAL INSTRUCTION: Preserve the core facial features (eyes, nose, mouth, jawline) of the person in the image. They must remain recognizable. You can creatively change hair style and color, add accessories like hats or glasses, and alter skin coloring to fit the new theme. Do not change the fundamental facial structure. Now, apply the following creative edit: ${prompt}`;
+    const ai = getAiClient(apiKey);
+    
+    const instructionParts = [];
+    if (removeBackground) {
+        instructionParts.push("First, perfectly remove the background from the image, making it transparent. The subject must be fully and cleanly isolated.");
+    }
+    instructionParts.push("Preserve the core facial features (eyes, nose, mouth, jawline) of the person in the image. They must remain recognizable. You can creatively change hair style and color, add accessories like hats or glasses, and alter skin coloring to fit the new theme. Do not change the fundamental facial structure.");
+    instructionParts.push(`Now, apply the following creative edit: ${prompt}`);
+    
+    let finalPrompt = `CRITICAL INSTRUCTION: ${instructionParts.join(' ')}`;
 
     if (quality === 'high') {
         finalPrompt += ' The final image should be of high quality, with fine details, sharp focus, and a professional, photorealistic finish.';

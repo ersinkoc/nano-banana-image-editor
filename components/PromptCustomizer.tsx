@@ -15,6 +15,8 @@ interface PromptCustomizerProps {
   setAspectRatio: (aspectRatio: string) => void;
   numImages: 0 | 1 | 4;
   setNumImages: (num: 0 | 1 | 4) => void;
+  removeBackground: boolean;
+  setRemoveBackground: (remove: boolean) => void;
 }
 
 const initialDetails: PromptDetails = {
@@ -76,7 +78,7 @@ const CardFooter: React.FC<{children: React.ReactNode, className?: string}> = ({
 
 export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({ 
     onGenerateRandom, onGenerateCustom, onImageUpload, isDisabled, quality, setQuality,
-    aspectRatio, setAspectRatio, numImages, setNumImages
+    aspectRatio, setAspectRatio, numImages, setNumImages, removeBackground, setRemoveBackground
 }) => {
   const [gender, setGender] = useState<Gender>('unspecified');
   const [style, setStyle] = useState<ArtisticStyle>('Realism');
@@ -109,18 +111,53 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
     { value: 'Realism', label: 'Realism' },
     { value: 'Artistic', label: 'Artistic (Random)' },
     { value: 'Abstract Expressionism', label: 'Abstract Expressionism' },
+    { value: 'Airbrush', label: 'Airbrush' },
+    { value: 'Art Deco', label: 'Art Deco' },
     { value: 'Art Nouveau', label: 'Art Nouveau' },
     { value: 'Baroque', label: 'Baroque' },
+    { value: 'Bauhaus', label: 'Bauhaus' },
+    { value: 'Biopunk', label: 'Biopunk' },
+    { value: 'Collage', label: 'Collage' },
     { value: 'Cubist', label: 'Cubist' },
+    { value: 'Cyberpunk', label: 'Cyberpunk' },
+    { value: 'Dieselpunk', label: 'Dieselpunk' },
+    { value: 'Double Exposure', label: 'Double Exposure' },
+    { value: 'Etching', label: 'Etching' },
     { value: 'Fantasy Art', label: 'Fantasy Art' },
+    { value: 'Fauvism', label: 'Fauvism' },
+    { value: 'Folk Art', label: 'Folk Art' },
+    { value: 'Glitch Art', label: 'Glitch Art' },
+    { value: 'Gothic Art', label: 'Gothic Art' },
+    { value: 'Gouache', label: 'Gouache' },
     { value: 'Impressionistic', label: 'Impressionistic' },
+    { value: 'Ink Wash Painting', label: 'Ink Wash Painting' },
     { value: 'Line Art', label: 'Line Art' },
+    { value: 'Lomography', label: 'Lomography' },
     { value: 'Minimalism', label: 'Minimalism' },
+    { value: 'Neoclassicism', label: 'Neoclassicism' },
+    { value: 'Pastel Drawing', label: 'Pastel Drawing' },
     { value: 'Pixel Art', label: 'Pixel Art' },
+    { value: 'Pop Art', label: 'Pop Art' },
+    { value: 'Post-Impressionism', label: 'Post-Impressionism' },
+    { value: 'Psychedelic', label: 'Psychedelic' },
+    { value: 'Renaissance', label: 'Renaissance' },
+    { value: 'Risograph', label: 'Risograph' },
+    { value: 'Rococo', label: 'Rococo' },
+    { value: 'Romanticism', label: 'Romanticism' },
+    { value: 'Stained Glass', label: 'Stained Glass' },
     { value: 'Steampunk', label: 'Steampunk' },
+    { value: 'Street Art', label: 'Street Art' },
     { value: 'Surrealist', label: 'Surrealist' },
     { value: 'Synthwave', label: 'Synthwave' },
+    { value: 'Tattoo Art', label: 'Tattoo Art' },
+    { value: 'Technical Drawing', label: 'Technical Drawing' },
+    { value: 'Tribal Art', label: 'Tribal Art' },
+    { value: 'Ukiyo-e', label: 'Ukiyo-e' },
+    { value: 'Vaporwave', label: 'Vaporwave' },
+    { value: 'Vector Art', label: 'Vector Art' },
     { value: 'Vintage Photo', label: 'Vintage Photo' },
+    { value: 'Voxel Art', label: 'Voxel Art' },
+    { value: 'Woodcut Print', label: 'Woodcut Print' },
   ];
 
   return (
@@ -150,6 +187,30 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
              <SettingButtonGroup label="Quality" options={[ { value: 'standard', label: 'Standard' }, { value: 'high', label: 'High' }]} selectedValue={quality} onSelect={setQuality} />
              <SettingButtonGroup label="Aspect Ratio" options={[ { value: '1:1', label: '1:1' }, { value: '16:9', label: '16:9' }, { value: '9:16', label: '9:16' } ]} selectedValue={aspectRatio} onSelect={setAspectRatio} />
              <SettingButtonGroup label="Number of Images" options={[ { value: '0', label: 'JSON' }, { value: '1', label: '1' }, { value: '4', label: '4' } ]} selectedValue={String(numImages)} onSelect={(value) => setNumImages(Number(value) as 0 | 1 | 4)} />
+             <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="remove-background" className="text-sm font-medium text-card-foreground">
+                        Remove Background
+                    </label>
+                    <button
+                        id="remove-background"
+                        type="button"
+                        role="switch"
+                        aria-checked={removeBackground}
+                        onClick={() => setRemoveBackground(!removeBackground)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${
+                            removeBackground ? 'bg-primary' : 'bg-input'
+                        }`}
+                    >
+                        <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                removeBackground ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                        />
+                    </button>
+                </div>
+             </div>
          </CardContent>
       </Card>
       

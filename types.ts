@@ -1,5 +1,16 @@
 export type Gender = 'male' | 'female' | 'unspecified';
-export type ArtisticStyle = 'Realism' | 'Artistic' | 'Impressionistic' | 'Surrealist' | 'Art Nouveau' | 'Cubist' | 'Pixel Art' | 'Synthwave' | 'Steampunk' | 'Vintage Photo' | 'Line Art' | 'Abstract Expressionism' | 'Baroque' | 'Fantasy Art' | 'Minimalism';
+export type ArtisticStyle = 
+  | 'Realism' | 'Artistic' | 'Impressionistic' | 'Surrealist' | 'Art Nouveau' 
+  | 'Cubist' | 'Pixel Art' | 'Synthwave' | 'Steampunk' | 'Vintage Photo' 
+  | 'Line Art' | 'Abstract Expressionism' | 'Baroque' | 'Fantasy Art' | 'Minimalism'
+  | 'Pop Art' | 'Street Art' | 'Ukiyo-e' | 'Art Deco' | 'Bauhaus' | 'Gothic Art'
+  | 'Renaissance' | 'Romanticism' | 'Post-Impressionism' | 'Fauvism' | 'Rococo'
+  | 'Neoclassicism' | 'Psychedelic' | 'Vaporwave' | 'Glitch Art' | 'Cyberpunk'
+  | 'Biopunk' | 'Dieselpunk' | 'Folk Art' | 'Tribal Art' | 'Gouache'
+  | 'Pastel Drawing' | 'Ink Wash Painting' | 'Woodcut Print' | 'Etching' | 'Collage'
+  | 'Airbrush' | 'Vector Art' | 'Voxel Art' | 'Lomography' | 'Double Exposure'
+  | 'Tattoo Art' | 'Technical Drawing' | 'Stained Glass' | 'Risograph';
+
 
 export interface ImageData {
   dataUrl: string;
