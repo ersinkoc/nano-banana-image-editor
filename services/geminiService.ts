@@ -40,7 +40,7 @@ const promptSchema = {
 
 const promptExamples = [
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Transform him into a lone wanderer standing on the cracked highway of a post-apocalyptic desert, with remnants of a fallen metropolis shimmering in the heat haze behind him. His coat flaps in the scorching wind, dust swirling around as he grips a weathered map and stares toward the burning horizon where the last remnants of civilization glow faintly under an orange sun.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Transform him into a lone wanderer standing on the cracked highway of a post-apocalyptic desert, with remnants of a fallen metropolis shimmering in the heat haze behind him. His coat flaps in the scorching wind, dust swirling around as he grips a weathered map and stares toward the burning horizon where the last remnants of civilization glow faintly under an orange sun.",
       details: {
         year: "2097",
         genre: "Post-Apocalyptic Drama",
@@ -57,7 +57,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Place the subject in a quiet, minimalist Scandinavian-style living room during a lazy afternoon. The atmosphere is calm and peaceful. The person is sitting in a comfortable armchair, reading a book, with soft light filtering in through a large window.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Place the subject in a quiet, minimalist Scandinavian-style living room during a lazy afternoon. The atmosphere is calm and peaceful. The person is sitting in a comfortable armchair, reading a book, with soft light filtering in through a large window.",
       details: {
         year: "Present Day",
         genre: "Slice of Life / Photorealism",
@@ -74,7 +74,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Transform the subject into a character from a 1980s sci-fi anime film. The style should be reminiscent of classic hand-drawn cel animation, with sharp, expressive lines and a slightly grainy film texture. The character should be piloting a mech in a neon-lit city.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Transform the subject into a character from a 1980s sci-fi anime film. The style should be reminiscent of classic hand-drawn cel animation, with sharp, expressive lines and a slightly grainy film texture. The character should be piloting a mech in a neon-lit city.",
       details: {
         year: "1988",
         genre: "80s Sci-Fi Anime / Mecha",
@@ -91,7 +91,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Re-imagine the subject as a dramatic charcoal portrait sketch on textured paper. The focus should be on raw emotion and expressive mark-making, not perfect realism. The background should fade into abstract, smudged shadows.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Re-imagine the subject as a dramatic charcoal portrait sketch on textured paper. The focus should be on raw emotion and expressive mark-making, not perfect realism. The background should fade into abstract, smudged shadows.",
       details: {
         year: "Timeless",
         genre: "Expressive Portraiture / Charcoal Sketch",
@@ -108,7 +108,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Cast the subject as a private detective in a 1930s Art Deco metropolis, caught in a moment of contemplation. Rain slicks the cobblestone streets, reflecting the neon signs of the city's underbelly. The subject leans against a grand, brass-adorned doorway, steam rising from a nearby sewer grate, their face half-shrouded in shadow.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Cast the subject as a private detective in a 1930s Art Deco metropolis, caught in a moment of contemplation. Rain slicks the cobblestone streets, reflecting the neon signs of the city's underbelly. The subject leans against a grand, brass-adorned doorway, steam rising from a nearby sewer grate, their face half-shrouded in shadow.",
       details: {
         year: "1934",
         genre: "Art Deco Noir Film",
@@ -125,7 +125,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Reimagine the subject as a whimsical character in a children's storybook illustration. They are a friendly badger botanist, meticulously tending to glowing, fantastical plants in a cozy, cluttered greenhouse made of reclaimed wood and glass. The style should be soft watercolor with visible paper texture and gentle ink outlines.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Reimagine the subject as a whimsical character in a children's storybook illustration. They are a friendly badger botanist, meticulously tending to glowing, fantastical plants in a cozy, cluttered greenhouse made of reclaimed wood and glass. The style should be soft watercolor with visible paper texture and gentle ink outlines.",
       details: {
         year: "Timeless Storybook",
         genre: "Children's Book Watercolor",
@@ -142,7 +142,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Transform the subject into a stylized, low-poly 3D character. They are an explorer standing on the edge of a vibrant, geometric alien world. The landscape is composed of colorful, faceted crystals and floating islands, rendered with flat shading and no textures. The aesthetic should feel clean, minimalist, and digital.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Transform the subject into a stylized, low-poly 3D character. They are an explorer standing on the edge of a vibrant, geometric alien world. The landscape is composed of colorful, faceted crystals and floating islands, rendered with flat shading and no textures. The aesthetic should feel clean, minimalist, and digital.",
       details: {
         year: "Conceptual Future",
         genre: "Low-Poly 3D Art",
@@ -159,7 +159,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Position the subject as a brilliant inventor in a Victorian-era workshop filled with brass machinery, intricate clockwork, and glowing vacuum tubes. They are tinkering with a complex automaton, with detailed blueprints scattered across a wooden workbench. The air is thick with the smell of oil and ozone.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Position the subject as a brilliant inventor in a Victorian-era workshop filled with brass machinery, intricate clockwork, and glowing vacuum tubes. They are tinkering with a complex automaton, with detailed blueprints scattered across a wooden workbench. The air is thick with the smell of oil and ozone.",
       details: {
         year: "1888",
         genre: "Steampunk Inventor",
@@ -176,7 +176,7 @@ const promptExamples = [
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered. Render the image as an authentic 19th-century daguerreotype photograph. The subject should have a formal, stoic pose, looking directly at the camera. The image should have the characteristic silver-on-copper sheen, slight chemical imperfections, and a shallow depth of field. The background is a simple, plain studio backdrop.",
+      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Render the image as an authentic 19th-century daguerreotype photograph. The subject should have a formal, stoic pose, looking directly at the camera. The image should have the characteristic silver-on-copper sheen, slight chemical imperfections, and a shallow depth of field. The background is a simple, plain studio backdrop.",
       details: {
         year: "1850s",
         genre: "Daguerreotype Portrait",
@@ -201,37 +201,49 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
     // Part 1: Main Task
     let styleInstruction: string;
     switch (style) {
-        case 'Impressionistic':
-            styleInstruction = `For this request, lean towards an Impressionistic style. Think visible brushstrokes, emphasis on light and its changing qualities, and ordinary subject matter. Like a painting by Monet or Renoir.`;
-            break;
-        case 'Surrealist':
-            styleInstruction = `For this request, lean towards a Surrealist style. Create dream-like, bizarre, and illogical scenes. Think of the works of Salvador Dalí or Max Ernst.`;
+        case 'Abstract Expressionism':
+            styleInstruction = `For this request, lean towards an Abstract Expressionist style. Emphasize spontaneous, non-representational creation with a focus on raw emotion and the physical act of art-making. Think Jackson Pollock.`;
             break;
         case 'Art Nouveau':
             styleInstruction = `For this request, lean towards an Art Nouveau style. Use long, sinuous, organic lines, floral and plant-inspired motifs, and a decorative, ornamental quality. Think Alphonse Mucha.`;
             break;
+        case 'Artistic':
+            styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`;
+            break;
+        case 'Baroque':
+            styleInstruction = `For this request, lean towards a Baroque style. Create scenes with dramatic intensity, rich, deep color, and strong contrasts of light and shadow. Think Caravaggio or Rembrandt.`;
+            break;
         case 'Cubist':
             styleInstruction = `For this request, lean towards a Cubist style. The subject should be analyzed, broken up, and reassembled in an abstracted form—depicting the subject from a multitude of viewpoints. Think Picasso or Braque.`;
             break;
-        case 'Pixel Art':
-            styleInstruction = `For this request, lean towards a retro Pixel Art style. The concept should be suitable for a 16-bit or 32-bit video game, with clear pixel clusters and a limited color palette.`;
+        case 'Fantasy Art':
+            styleInstruction = `For this request, lean towards a Fantasy Art style. Create scenes with magical or supernatural themes, mythical creatures, and epic, imagined landscapes. Think high fantasy book covers.`;
             break;
-        case 'Synthwave':
-            styleInstruction = `For this request, lean towards a Synthwave style. Think 1980s retrofuturism, neon grids, vibrant pinks and blues, and a nostalgic, electronic feel.`;
-            break;
-        case 'Steampunk':
-            styleInstruction = `For this request, lean towards a Steampunk style. Combine Victorian-era aesthetics with industrial, steam-powered machinery. Think brass, gears, and intricate clockwork.`;
-            break;
-        case 'Vintage Photo':
-            styleInstruction = `For this request, lean towards a vintage photography style. Emulate the look of old film, daguerreotypes, or sepia-toned prints from a specific historical era.`;
+        case 'Impressionistic':
+            styleInstruction = `For this request, lean towards an Impressionistic style. Think visible brushstrokes, emphasis on light and its changing qualities, and ordinary subject matter. Like a painting by Monet or Renoir.`;
             break;
         case 'Line Art':
             styleInstruction = `For this request, lean towards a minimalist Line Art style. The image should be composed of clean, simple lines with minimal shading or color, focusing on form and shape.`;
             break;
-        case 'Artistic':
-            styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`;
+        case 'Minimalism':
+            styleInstruction = `For this request, lean towards a Minimalist style. Use a limited number of simple elements, clean lines, and negative space to create a powerful effect. Focus on extreme simplicity.`;
             break;
-        case 'Realistic':
+        case 'Pixel Art':
+            styleInstruction = `For this request, lean towards a retro Pixel Art style. The concept should be suitable for a 16-bit or 32-bit video game, with clear pixel clusters and a limited color palette.`;
+            break;
+        case 'Steampunk':
+            styleInstruction = `For this request, lean towards a Steampunk style. Combine Victorian-era aesthetics with industrial, steam-powered machinery. Think brass, gears, and intricate clockwork.`;
+            break;
+        case 'Surrealist':
+            styleInstruction = `For this request, lean towards a Surrealist style. Create dream-like, bizarre, and illogical scenes. Think of the works of Salvador Dalí or Max Ernst.`;
+            break;
+        case 'Synthwave':
+            styleInstruction = `For this request, lean towards a Synthwave style. Think 1980s retrofuturism, neon grids, vibrant pinks and blues, and a nostalgic, electronic feel.`;
+            break;
+        case 'Vintage Photo':
+            styleInstruction = `For this request, lean towards a vintage photography style. Emulate the look of old film, daguerreotypes, or sepia-toned prints from a specific historical era.`;
+            break;
+        case 'Realism':
         default:
             styleInstruction = `For this request, focus on photorealistic concepts that look like they could be real photographs, even if the subject matter is fantastical.`;
             break;
@@ -246,7 +258,7 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
 
     // Part 2: JSON structure instructions
     const jsonStructure = {
-      prompt: "A main instruction string that starts with 'You will perform an image edit using the person from the provided photo as the main subject. The face must remain clear and unaltered.' followed by a summary of the concept.",
+      prompt: "A main instruction string that starts with 'You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved.' followed by a summary of the concept.",
       details: {
         year: "A specific year or era (e.g., 1985, Cyberpunk Future, Ancient Rome)",
         genre: "A specific genre, style, or artistic medium (e.g., Sci-Fi Noir, Charcoal Sketch, 80s Anime)",
@@ -282,7 +294,7 @@ export const generateEditPrompt = async (
     gender: string,
     quality: string = 'standard',
     aspectRatio: string = '1:1',
-    style: ArtisticStyle = 'Realistic'
+    style: ArtisticStyle = 'Realism'
 ): Promise<Prompt> => {
     const response = await ai.models.generateContent({
         model: PROMPT_GENERATION_MODEL,

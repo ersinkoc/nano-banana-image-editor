@@ -63,15 +63,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
   return (
     <div className="space-y-4">
         <div 
-          className="relative w-full h-48 bg-gray-700 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-500 cursor-pointer hover:border-purple-400 transition-colors"
+          className="relative w-full aspect-square bg-muted/50 rounded-lg flex items-center justify-center border-2 border-dashed border-border cursor-pointer hover:border-primary transition-colors group"
           onClick={handleButtonClick}
         >
         {preview ? (
             <img src={preview} alt="Preview" className="object-contain h-full w-full rounded-md" />
         ) : (
-            <div className="text-center text-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            <p className="mt-2 text-sm">Click to upload a profile photo</p>
+            <div className="text-center text-muted-foreground p-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 opacity-50 transition-colors group-hover:text-primary"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M20.4 14.5L16 10 4 20"></path></svg>
+                <p className="mt-2 text-sm font-semibold">Click to upload photo</p>
+                <p className="text-xs">PNG, JPG or WEBP (max {MAX_FILE_SIZE_MB}MB)</p>
             </div>
         )}
         </div>

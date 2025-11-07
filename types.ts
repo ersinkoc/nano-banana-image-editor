@@ -1,5 +1,5 @@
 export type Gender = 'male' | 'female' | 'unspecified';
-export type ArtisticStyle = 'Realistic' | 'Artistic' | 'Impressionistic' | 'Surrealist' | 'Art Nouveau' | 'Cubist' | 'Pixel Art' | 'Synthwave' | 'Steampunk' | 'Vintage Photo' | 'Line Art';
+export type ArtisticStyle = 'Realism' | 'Artistic' | 'Impressionistic' | 'Surrealist' | 'Art Nouveau' | 'Cubist' | 'Pixel Art' | 'Synthwave' | 'Steampunk' | 'Vintage Photo' | 'Line Art' | 'Abstract Expressionism' | 'Baroque' | 'Fantasy Art' | 'Minimalism';
 
 export interface ImageData {
   dataUrl: string;

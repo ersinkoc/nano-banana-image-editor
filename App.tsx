@@ -8,15 +8,38 @@ import { generateEditPrompt, editImageWithGemini } from './services/geminiServic
 import * as googleDriveService from './services/googleDriveService';
 import type { Prompt, Gender, ImageData, PromptDetails, DebugLog, ArtisticStyle, HistoryEntry } from './types';
 
-const Header: React.FC = () => (
-  <header className="py-4 px-6 bg-gray-900/80 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-20">
-    <div className="container mx-auto flex justify-between items-center">
-      <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">
-        Nano Banana Image Editor
-      </h1>
-    </div>
-  </header>
+const SunIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
 );
+
+const MoonIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+);
+
+type Theme = 'light' | 'dark';
+
+const Header: React.FC<{ theme: Theme, setTheme: (theme: Theme) => void }> = ({ theme, setTheme }) => {
+    const toggleTheme = () => {
+        setTheme(theme === 'light' ? 'dark' : 'light');
+    };
+    return (
+      <header className="py-3 px-4 sm:px-6 bg-card/80 backdrop-blur-sm border-b border-border sticky top-0 z-20">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
+            Foto Maydonoz
+          </h1>
+          <button
+            onClick={toggleTheme}
+            className="h-9 w-9 flex items-center justify-center rounded-full bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+            aria-label="Toggle theme"
+          >
+            <SunIcon />
+            <MoonIcon />
+          </button>
+        </div>
+      </header>
+    );
+};
 
 const App: React.FC = () => {
   const [originalImage, setOriginalImage] = useState<ImageData | null>(null);
@@ -35,11 +58,12 @@ const App: React.FC = () => {
   const [isGeneratingNewPrompt, setIsGeneratingNewPrompt] = useState<boolean>(false);
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
   const [error, setError] = useState<React.ReactNode | null>(null);
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
 
   // State lifted from PromptCustomizer
   const [quality, setQuality] = useState('standard');
   const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [numImages, setNumImages] = useState<1 | 4>(4);
+  const [numImages, setNumImages] = useState<0 | 1 | 4>(4);
 
 
   // Debug Console State
@@ -50,6 +74,13 @@ const App: React.FC = () => {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [gTokenClient, setGTokenClient] = useState<any>(null);
 
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+  
   const addLog = useCallback((type: DebugLog['type'], data: unknown) => {
     const newLog: DebugLog = {
       type,
@@ -61,11 +92,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      // Limit history to 50 items
       const limitedHistory = promptHistory.slice(0, 50);
-      
-      // Create a "lean" version of the history for localStorage by removing the large base64 image data.
-      // This prevents exceeding the localStorage quota. Thumbnails for the current session are preserved in the React state.
       const historyToSave = limitedHistory.map(({ id, prompt }) => ({
         id,
         prompt,
@@ -105,41 +132,35 @@ const App: React.FC = () => {
   };
   
   const handleGenericError = (e: unknown, context: string) => {
-    console.error(e);
+    console.error(`Error during ${context}:`, e);
     addLog('ERROR', { context, error: e });
     
-    let isQuotaError = false;
-    let errorText = '';
+    // Default error message
+    let finalError: React.ReactNode = "An unexpected error occurred. Please try again later.";
 
-    // First, perform a structured check for the quota error if `e` is an object.
-    if (typeof e === 'object' && e !== null) {
-        const errorObject = e as any;
-        // Check for common error structures, including the one reported by the user.
-        if (errorObject?.error?.code === 429 || errorObject?.error?.status === 'RESOURCE_EXHAUSTED' || errorObject?.status === 'RESOURCE_EXHAUSTED') {
-            isQuotaError = true;
-        }
-    }
-
-    // Then, create a string representation for fallback checks and display.
+    // Attempt to extract a meaningful string from the unknown error type
+    let errorMessage = '';
     if (e instanceof Error) {
-        errorText = e.message;
+        errorMessage = e.message;
     } else if (typeof e === 'string') {
-        errorText = e;
+        errorMessage = e;
+    } else if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') {
+        errorMessage = e.message;
     } else {
         try {
-            errorText = JSON.stringify(e);
+            errorMessage = JSON.stringify(e);
         } catch {
-            errorText = 'An unidentifiable error occurred.';
+            errorMessage = 'An unidentifiable error occurred.';
         }
     }
 
-    const msg = errorText.toLowerCase();
+    const lowerCaseMessage = errorMessage.toLowerCase();
 
-    // The final check combines the structured check and the fallback string check.
-    if (isQuotaError || msg.includes("429") || msg.includes("resource_exhausted")) {
-        setError(
+    // 1. Rate Limiting / Quota Errors
+    if (lowerCaseMessage.includes("429") || lowerCaseMessage.includes("resource_exhausted") || lowerCaseMessage.includes("quota")) {
+        finalError = (
             <>
-                You have exceeded your API quota. Please check your plan and billing details. For more information, see the{' '}
+                You have exceeded your API quota for the Gemini API. Please check your plan and billing details. For more information, you can review the{' '}
                 <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-red-100">
                     rate limits documentation
                 </a>
@@ -149,67 +170,76 @@ const App: React.FC = () => {
                 </a>.
             </>
         );
-        return;
+    }
+    // 2. Content Safety Filtering
+    else if (lowerCaseMessage.includes("[safety]") || lowerCaseMessage.includes("blocked by the safety filter")) {
+        finalError = "Your request was blocked by the content safety filter. This can sometimes happen with profile pictures or specific prompts. Please try a different image or adjust your prompt.";
+    }
+    // 3. API Key Errors
+    else if (lowerCaseMessage.includes("api key not valid") || lowerCaseMessage.includes("api_key_invalid")) {
+        finalError = "The application is not configured correctly. The API key is invalid. Please contact support.";
+    }
+    // 4. Invalid Response from AI (e.g., malformed JSON)
+    else if (lowerCaseMessage.includes("invalid json") || lowerCaseMessage.includes("unexpected format") || lowerCaseMessage.includes("failed to parse")) {
+        finalError = "The AI generated an invalid response, which can be a temporary issue. Please try your request again.";
+    }
+    // 5. Network/RPC Errors
+    else if (lowerCaseMessage.includes("rpc failed") || lowerCaseMessage.includes("network error")) {
+        finalError = "A network error occurred. Please check your internet connection and try again. The service might be temporarily unavailable.";
+    }
+    // 6. General Fallback
+    else {
+        finalError = `An unexpected issue occurred. Please see details below. \n\nDetails: ${errorMessage}`;
     }
 
-    // Generic handling for other errors.
-    let errorMessage = `An unexpected issue occurred: ${errorText}`;
-    if (msg.includes("rpc failed")) errorMessage = "A network error occurred. Please check your internet connection and try again. The service might be temporarily unavailable.";
-    else if (msg.includes("invalid json") || msg.includes("unexpected format")) errorMessage = "The AI generated an invalid response. This can be a temporary issue. Please try again.";
-    else if (msg.includes("[safety]")) errorMessage = "The request was blocked by the content safety filter. This can sometimes happen with profile pictures. Please try a different image.";
-    else if (msg.includes("api key not valid")) errorMessage = "There is a configuration issue with the application. Please contact support.";
-    
-    setError(`Failed to generate image. ${errorMessage}`);
+    setError(finalError);
   };
 
-  const performImageEdit = async (prompt: Prompt, quality: string, aspectRatio: string, numImages: 1 | 4) => {
-    if (!originalImage) {
-      setError("Please upload an image first.");
-      return;
-    }
+  const performImageEdit = async (prompt: Prompt, quality: string, aspectRatio: string, numImages: 0 | 1 | 4) => {
     setIsLoading(true);
     setError(null);
     setEditedImages(null);
     setCurrentPrompt(prompt);
 
     try {
-      const requestPayload = { base64: '...', mimeType: originalImage.mimeType, prompt: prompt.prompt, quality, aspectRatio, numImages };
-      addLog('REQUEST', { endpoint: `editImageWithGemini (x${numImages})`, payload: requestPayload });
-      
-      const imagePromises = Array(numImages).fill(0).map(() => 
-        editImageWithGemini(
-          originalImage.base64,
-          originalImage.mimeType,
-          prompt.prompt,
-          quality,
-          aspectRatio,
-        )
-      );
+        let editedImageResults: string[] | null = null;
+        if (numImages > 0) {
+            const requestPayload = { base64: '...', mimeType: originalImage!.mimeType, prompt: prompt.prompt, quality, aspectRatio, numImages };
+            addLog('REQUEST', { endpoint: `editImageWithGemini (x${numImages})`, payload: requestPayload });
+            
+            const imagePromises = Array(numImages).fill(0).map(() => 
+                editImageWithGemini(
+                originalImage!.base64,
+                originalImage!.mimeType,
+                prompt.prompt,
+                quality,
+                aspectRatio,
+                )
+            );
+            editedImageResults = await Promise.all(imagePromises);
+            addLog('RESPONSE', { endpoint: `editImageWithGemini (x${numImages})`, result: `${numImages} images received` });
+            setEditedImages(editedImageResults);
+        } else {
+            addLog('REQUEST', { endpoint: `generatePromptOnly`, payload: { prompt } });
+        }
 
-      const editedImageResults = await Promise.all(imagePromises);
-      
-      addLog('RESPONSE', { endpoint: `editImageWithGemini (x${numImages})`, result: `${numImages} images received` });
-      setEditedImages(editedImageResults);
-
-      const newHistoryEntry: HistoryEntry = {
-        id: `${new Date().getTime()}-${prompt.prompt.slice(0, 20)}`,
-        prompt,
-        image: editedImageResults[0], // Use the first image for the history thumbnail
-      };
-      // Add new entry to history, removing any exact duplicates of the same prompt text.
-      // This is a simple way to "move to top" when re-using a prompt.
-      setPromptHistory(prev => [newHistoryEntry, ...prev.filter(p => p.prompt.prompt !== prompt.prompt)]);
+        const newHistoryEntry: HistoryEntry = {
+            id: `${new Date().getTime()}-${prompt.prompt.slice(0, 20)}`,
+            prompt,
+            image: editedImageResults?.[0],
+        };
+        setPromptHistory(prev => [newHistoryEntry, ...prev.filter(p => p.prompt.prompt !== prompt.prompt)]);
 
     } catch (e) {
-      handleGenericError(e, 'performImageEdit');
+        handleGenericError(e, 'performImageEdit');
     } finally {
-      setIsLoading(false);
-      setIsGeneratingNewPrompt(false);
+        setIsLoading(false);
+        setIsGeneratingNewPrompt(false);
     }
   };
 
-  const handleGenerateRandom = useCallback(async (gender: Gender, style: ArtisticStyle, numImages: 1 | 4) => {
-    if (!originalImage) {
+  const handleGenerateRandom = useCallback(async (gender: Gender, style: ArtisticStyle, numImages: 0 | 1 | 4) => {
+    if (!originalImage && numImages > 0) {
       setError("Please upload an image first.");
       return;
     }
@@ -229,17 +259,20 @@ const App: React.FC = () => {
     }
   }, [originalImage, addLog, quality, aspectRatio]);
   
-  const handleGenerateCustom = useCallback(async (prompt: Prompt, numImages: 1 | 4) => {
+  const handleGenerateCustom = useCallback(async (prompt: Prompt, numImages: 0 | 1 | 4) => {
+      if (!originalImage && numImages > 0) {
+          setError("Please upload an image first.");
+          return;
+      }
       await performImageEdit(prompt, quality, aspectRatio, numImages);
   }, [originalImage, addLog, quality, aspectRatio]);
 
   const handleUseHistoryPrompt = useCallback(async (promptToUse: Prompt) => {
-     if (!originalImage) {
+     if (!originalImage && numImages > 0) {
       setError("Please upload an image first to use a historical prompt.");
-      window.scrollTo(0, 0); // Scroll to top to show error
+      window.scrollTo(0, 0); 
       return;
     }
-    // performImageEdit will now handle adding the result to history, effectively "moving" it to the top.
     await performImageEdit(promptToUse, quality, aspectRatio, numImages);
   }, [originalImage, addLog, quality, aspectRatio, numImages]);
 
@@ -259,7 +292,6 @@ const App: React.FC = () => {
 
     if (!isSignedIn) {
       handleSignIn();
-      // User will need to click "Save" again after signing in.
       return;
     }
     
@@ -286,30 +318,35 @@ const App: React.FC = () => {
 
   return (
     <DebugContext.Provider value={{ logs, addLog }}>
-      <div className="min-h-screen bg-gray-900 text-gray-100">
-        <Header />
-        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="flex flex-col min-h-screen">
+        <Header theme={theme} setTheme={setTheme} />
+        <main className="container mx-auto p-4 sm:p-6 flex-grow w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
             <aside className="lg:col-span-4 xl:col-span-3">
-              <PromptCustomizer 
-                onGenerateRandom={handleGenerateRandom}
-                onGenerateCustom={handleGenerateCustom}
-                onImageUpload={handleImageUpload}
-                isDisabled={isLoading || isGeneratingNewPrompt}
-                quality={quality}
-                setQuality={setQuality}
-                aspectRatio={aspectRatio}
-                setAspectRatio={setAspectRatio}
-                numImages={numImages}
-                setNumImages={setNumImages}
-              />
+              <div className="sticky top-24">
+                <PromptCustomizer 
+                  onGenerateRandom={handleGenerateRandom}
+                  onGenerateCustom={handleGenerateCustom}
+                  onImageUpload={handleImageUpload}
+                  isDisabled={isLoading || isGeneratingNewPrompt}
+                  quality={quality}
+                  setQuality={setQuality}
+                  aspectRatio={aspectRatio}
+                  setAspectRatio={setAspectRatio}
+                  numImages={numImages}
+                  setNumImages={setNumImages}
+                />
+              </div>
             </aside>
 
-            <section className="lg:col-span-8 xl:col-span-9">
+            <section className="lg:col-span-8 xl:col-span-9 space-y-6">
               {error && (
-                <div className="bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-6" role="alert">
-                  <strong className="font-bold">Error: </strong>
-                  <span className="block sm:inline">{error}</span>
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive-foreground p-4 rounded-lg flex items-start gap-3" role="alert">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <div>
+                        <h3 className="font-semibold">An Error Occurred</h3>
+                        <div className="text-sm text-destructive-foreground/80 whitespace-pre-wrap">{error}</div>
+                    </div>
                 </div>
               )}
               <Preview
@@ -323,10 +360,8 @@ const App: React.FC = () => {
                 isSavingToDrive={isSavingToDrive}
                 isDriveConfigured={googleDriveService.isDriveConfigured}
               />
+              <History prompts={promptHistory} onSelectPrompt={handleUseHistoryPrompt} isGeneratingNewPrompt={isGeneratingNewPrompt} />
             </section>
-          </div>
-          <div className="mt-8">
-             <History prompts={promptHistory} onSelectPrompt={handleUseHistoryPrompt} isGeneratingNewPrompt={isGeneratingNewPrompt} />
           </div>
         </main>
         <DebugConsole />
