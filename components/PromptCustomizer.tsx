@@ -174,7 +174,7 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
          <CardContent className="space-y-4">
             <GenderSelector selectedGender={gender} onGenderChange={setGender} />
             <div>
-                <label htmlFor="style-select" className="block text-sm font-medium text-card-foreground mb-2">Style (for Randomize)</label>
+                <label htmlFor="style-select" className="block text-sm font-medium text-card-foreground mb-2">Artistic Style (for Randomize)</label>
                 <select
                     id="style-select"
                     value={style}
