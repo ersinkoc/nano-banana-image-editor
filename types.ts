@@ -28,6 +28,11 @@ export interface ImageData {
   mimeType: string;
 }
 
+export interface NegativePrompt {
+  exclude_visuals: string[];
+  exclude_styles: string[];
+}
+
 export interface PromptDetails {
   medium: string;
   genre: string;
@@ -42,6 +47,7 @@ export interface PromptDetails {
   subject_expression: string;
   subject_action: string;
   environmental_elements: string;
+  negative_prompt?: NegativePrompt;
 }
 
 export interface Prompt {

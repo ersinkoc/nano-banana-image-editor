@@ -79,6 +79,20 @@ const promptSchema = {
                 subject_expression: { type: Type.STRING },
                 subject_action: { type: Type.STRING },
                 environmental_elements: { type: Type.STRING },
+                negative_prompt: {
+                    type: Type.OBJECT,
+                    properties: {
+                        exclude_visuals: {
+                            type: Type.ARRAY,
+                            items: { type: Type.STRING }
+                        },
+                        exclude_styles: {
+                            type: Type.ARRAY,
+                            items: { type: Type.STRING }
+                        }
+                    },
+                    required: ['exclude_visuals', 'exclude_styles']
+                }
             },
             required: ["year", "genre", "location", "lighting", "camera_angle", "emotion", "costume", "color_palette", "atmosphere", "subject_expression", "subject_action", "environmental_elements"],
         },
@@ -101,7 +115,12 @@ const promptExamples = [
         atmosphere: "Dry, desolate, cinematic — heavy with heat and memory",
         subject_expression: "A thousand-yard stare, focused and unwavering",
         subject_action: "Clutching a worn, folded map, bracing against the wind",
-        environmental_elements: "Heat haze shimmering off the asphalt, dust devils swirling, a vulture circling high above"
+        environmental_elements: "Heat haze shimmering off the asphalt, dust devils swirling, a vulture circling high above",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["clean clothing", "undamaged buildings", "lush greenery", "smiling subject", "bright blue sky"],
+          "exclude_styles": ["cartoon", "watercolor", "pop art", "minimalist"]
+        }
       }
     },
     {
@@ -118,7 +137,12 @@ const promptExamples = [
         atmosphere: "Serene, quiet, and comfortable. A moment of peaceful solitude.",
         subject_expression: "A soft, peaceful smile of complete absorption",
         subject_action: "Holding a hardcover book, with a finger marking the page",
-        environmental_elements: "Dust motes dancing in the sunbeam, steam gently rising from a nearby mug, a plant's shadow stretching across the floor"
+        environmental_elements: "Dust motes dancing in the sunbeam, steam gently rising from a nearby mug, a plant's shadow stretching across the floor",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["clutter", "dark colors", "harsh lighting", "anxious expression", "television"],
+          "exclude_styles": ["gothic", "cyberpunk", "graffiti", "action photography"]
+        }
       }
     },
     {
@@ -135,7 +159,12 @@ const promptExamples = [
         atmosphere: "Nostalgic, analog sci-fi feel, with a sense of high-stakes action.",
         subject_expression: "Gritted teeth and narrowed eyes, focused on the holographic display",
         subject_action: "Hands gripping the mech's control sticks, knuckles white",
-        environmental_elements: "Raindrops streaking across the cockpit's viewport, neon signs reflecting on wet surfaces, holographic data flickering"
+        environmental_elements: "Raindrops streaking across the cockpit's viewport, neon signs reflecting on wet surfaces, holographic data flickering",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["photorealistic textures", "soft gradients", "daylight", "peaceful expression"],
+          "exclude_styles": ["photorealism", "3D render", "CGI", "watercolor"]
+        }
       }
     },
     {
@@ -152,7 +181,12 @@ const promptExamples = [
         atmosphere: "Raw, emotional, and artistic. The texture of the charcoal and paper should be almost tangible.",
         subject_expression: "A melancholic, downward gaze, lips slightly parted",
         subject_action: "Resting their chin on their hand, one shoulder slightly raised",
-        environmental_elements: "Visible texture of the rough paper, smudged charcoal marks creating a soft vignette, stray eraser dust"
+        environmental_elements: "Visible texture of the rough paper, smudged charcoal marks creating a soft vignette, stray eraser dust",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["color", "smooth surfaces", "perfect lines", "happy expression", "detailed background"],
+          "exclude_styles": ["photorealism", "digital art", "oil painting", "vector illustration"]
+        }
       }
     },
     {
@@ -169,7 +203,12 @@ const promptExamples = [
         atmosphere: "Gritty, mysterious, and rain-soaked, with a sense of underlying danger.",
         subject_expression: "A cynical smirk, eyes scanning the street from under the brim of a fedora",
         subject_action: "Lighting a cigarette, cupping his hands against the wind",
-        environmental_elements: "Steam rising from a manhole cover, rain forming puddles that reflect neon signs, a distant siren"
+        environmental_elements: "Steam rising from a manhole cover, rain forming puddles that reflect neon signs, a distant siren",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["daylight", "bright, happy colors", "modern cars", "casual clothing"],
+          "exclude_styles": ["pop art", "impressionism", "fantasy art", "cute"]
+        }
       }
     },
     {
@@ -186,7 +225,12 @@ const promptExamples = [
         atmosphere: "Charming, cozy, and full of whimsical wonder.",
         subject_expression: "A look of delight and careful focus",
         subject_action: "Gently misting a glowing mushroom with a tiny spray bottle",
-        environmental_elements: "Sunbeams filtering through dusty glass, overgrown vines snaking around pots, fireflies hovering near glowing plants"
+        environmental_elements: "Sunbeams filtering through dusty glass, overgrown vines snaking around pots, fireflies hovering near glowing plants",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["dark shadows", "scary elements", "sharp angles", "sad expressions"],
+          "exclude_styles": ["photorealism", "noir", "cyberpunk", "horror"]
+        }
       }
     },
     {
@@ -203,7 +247,12 @@ const promptExamples = [
         atmosphere: "Serene, digital, and otherworldly.",
         subject_expression: "Wide-eyed wonder, mouth slightly agape",
         subject_action: "Reaching a hand out towards a floating crystal",
-        environmental_elements: "Geometric islands drifting slowly, crystalline structures pulsing with soft light, a sky with two blocky moons"
+        environmental_elements: "Geometric islands drifting slowly, crystalline structures pulsing with soft light, a sky with two blocky moons",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["realistic textures", "organic shapes", "shadows", "dirt or grime"],
+          "exclude_styles": ["painting", "sketch", "photorealism", "vintage"]
+        }
       }
     },
     {
@@ -220,7 +269,12 @@ const promptExamples = [
         atmosphere: "Intellectual, industrious, and anachronistically technological.",
         subject_expression: "A focused frown of concentration, occasionally breaking into a grin of discovery",
         subject_action: "Using a delicate pair of pliers to adjust a tiny gear on an automaton's hand",
-        environmental_elements: "Sparks flying from a nearby device, blueprints curling at the edges, bubbling liquids in glass beakers"
+        environmental_elements: "Sparks flying from a nearby device, blueprints curling at the edges, bubbling liquids in glass beakers",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["plastic", "digital screens", "modern technology", "clean, minimalist environment"],
+          "exclude_styles": ["modernism", "minimalism", "cartoon", "flat design"]
+        }
       }
     },
     {
@@ -237,7 +291,12 @@ const promptExamples = [
         atmosphere: "Historic, formal, and hauntingly still. A preserved moment from the past.",
         subject_expression: "A completely neutral, unwavering gaze, as required for long exposures",
         subject_action: "Sitting perfectly still, hands folded in their lap",
-        environmental_elements: "Slight chemical tarnishing at the edges of the plate, a subtle reflection of the studio window in the subject's eyes"
+        environmental_elements: "Slight chemical tarnishing at the edges of the plate, a subtle reflection of the studio window in the subject's eyes",
+        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
+        "negative_prompt": {
+          "exclude_visuals": ["color", "smiling", "movement blur", "modern clothing", "digital artifacts"],
+          "exclude_styles": ["modern photography", "digital painting", "action shot", "HDR"]
+        }
       }
     }
 ];
@@ -453,11 +512,16 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
         atmosphere: "A rich, evocative description of the overall mood and atmosphere.",
         subject_expression: "A specific facial expression for the subject (e.g., 'a knowing smirk', 'serene contemplation').",
         subject_action: "A specific, subtle action the subject is performing (e.g., 'adjusting a cufflink', 'gazing at a pocket watch').",
-        environmental_elements: "Key dynamic or static elements in the environment (e.g., 'falling snow, swirling fog, lens flare')."
+        environmental_elements: "Key dynamic or static elements in the environment (e.g., 'falling snow, swirling fog, lens flare').",
+        negative_prompt: {
+          exclude_visuals: ["A list of specific visual elements to avoid, e.g., 'blurry background', 'extra limbs'"],
+          exclude_styles: ["A list of artistic styles to avoid, e.g., 'cartoon', '3D render'"]
+        }
       }
     };
     promptParts.push('The response MUST be a single, valid JSON object following this exact structure:');
     promptParts.push(JSON.stringify(jsonStructure, null, 2));
+    promptParts.push("Also, provide a 'negative_prompt' object. This should contain two arrays: 'exclude_visuals' for specific unwanted visual elements, and 'exclude_styles' for artistic styles to avoid. This is crucial for refining the final image.");
 
     // Part 3: Examples
     promptParts.push('\nHere are some examples to show the desired output format and quality. Do NOT copy their themes. Be original and explore different styles.');
@@ -523,7 +587,7 @@ export const generateEditPrompt = async (
 export const editImageWithGemini = async (
     base64ImageData: string,
     mimeType: string,
-    prompt: string,
+    prompt: Prompt,
     quality: string,
     aspectRatio: string,
     imageModel: ImageModel,
@@ -538,7 +602,17 @@ export const editImageWithGemini = async (
         instructionParts.push("First, perfectly remove the background from the image, making it transparent. The subject must be fully and cleanly isolated.");
     }
     instructionParts.push("Preserve the core facial features (eyes, nose, mouth, jawline) of the person in the image. They must remain recognizable. You can creatively change hair style and color, add accessories like hats or glasses, and alter skin coloring to fit the new theme. Do not change the fundamental facial structure.");
-    instructionParts.push(`Now, apply the following creative edit: ${prompt}`);
+    
+    instructionParts.push(`Now, apply the following creative edit: ${prompt.prompt}`);
+
+    const { negative_prompt } = prompt.details;
+    if (negative_prompt) {
+        const { exclude_visuals = [], exclude_styles = [] } = negative_prompt;
+        const allExclusions = [...exclude_visuals, ...exclude_styles];
+        if (allExclusions.length > 0) {
+            instructionParts.push(`--- NEGATIVE PROMPT: Strictly avoid the following elements and styles: ${allExclusions.join(', ')}.`);
+        }
+    }
     
     let finalPrompt = `CRITICAL INSTRUCTION: ${instructionParts.join(' ')}`;
 

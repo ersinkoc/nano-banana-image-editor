@@ -274,14 +274,14 @@ const App: React.FC = () => {
         if (!originalImage) {
             throw new Error("Cannot edit image because no image was uploaded.");
         }
-        const requestPayload = { base64: '...', mimeType: originalImage.mimeType, prompt: prompt.prompt, quality, aspectRatio, numImages, removeBackground };
+        const requestPayload = { base64: '...', mimeType: originalImage.mimeType, prompt: prompt, quality, aspectRatio, numImages, removeBackground };
         addLog('REQUEST', { endpoint: `editImageWithGemini (x${numImages})`, payload: requestPayload });
         
         const imagePromises = Array(numImages).fill(0).map(() => 
             editImageWithGemini(
             originalImage.base64,
             originalImage.mimeType,
-            prompt.prompt,
+            prompt,
             quality,
             aspectRatio,
             imageModel,

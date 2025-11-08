@@ -279,15 +279,45 @@ const PromptDetails: React.FC<{
             </div>
             
             <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
-                {Object.entries(prompt.details).map(([key, value]) => (
-                    value && (
+                {Object.entries(prompt.details).map(([key, value]) => {
+                    if (key === 'negative_prompt' || !value) return null;
+                    return (
                         <div key={key} className="flex flex-col">
                             <span className="font-semibold text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
                             <span className="text-card-foreground">{String(value)}</span>
                         </div>
                     )
-                ))}
+                })}
             </div>
+            
+            {prompt.details.negative_prompt && (prompt.details.negative_prompt.exclude_visuals.length > 0 || prompt.details.negative_prompt.exclude_styles.length > 0) && (
+                <div className="p-4 sm:p-6 border-t border-border space-y-4">
+                    {prompt.details.negative_prompt.exclude_visuals.length > 0 && (
+                        <div>
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Visuals (Negative Prompt)</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {prompt.details.negative_prompt.exclude_visuals.map((tag, index) => (
+                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {prompt.details.negative_prompt.exclude_styles.length > 0 && (
+                        <div>
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Styles (Negative Prompt)</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {prompt.details.negative_prompt.exclude_styles.map((tag, index) => (
+                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+             )}
         </div>
     );
 };
@@ -351,7 +381,7 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
                 ) : (
                     !isLoading && (
                         <div className="text-muted-foreground text-center p-4">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-12 w-12 opacity-50"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-12 w-12 opacity-50"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                              <p className="mt-2 text-sm">Your masterpiece will appear here</p>
                         </div>
                     )
