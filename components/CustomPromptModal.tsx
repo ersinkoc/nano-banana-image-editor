@@ -134,6 +134,17 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
     setDetails(prev => ({ ...prev, [key]: value }));
   }
 
+  const handleNegativePromptChange = (type: 'exclude_visuals' | 'exclude_styles', value: string) => {
+    const items = value.split(',').map(s => s.trim()).filter(Boolean);
+    setDetails(prev => ({
+        ...prev,
+        negative_prompt: {
+            ...(prev.negative_prompt || { exclude_visuals: [], exclude_styles: [] }),
+            [type]: items,
+        }
+    }));
+  };
+
   const handleSubmit = () => {
     const customPrompt: Prompt = { prompt: generatedPrompt, details };
     onGenerate(customPrompt);
@@ -164,6 +175,26 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
               onSingleSelect={handleSingleSelect} onMultiSelect={handleMultiSelect} onTextChange={handleTextChange}
             />
           ))}
+          <div className="space-y-3 md:col-span-1">
+            <h3 className="text-sm font-semibold text-muted-foreground">Exclude Visuals (Negative Prompt)</h3>
+            <textarea
+              value={details.negative_prompt?.exclude_visuals?.join(', ') || ''}
+              onChange={(e) => handleNegativePromptChange('exclude_visuals', e.target.value)}
+              rows={2}
+              className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+              placeholder="e.g., text, watermark, ugly, tiling"
+            />
+          </div>
+          <div className="space-y-3 md:col-span-1">
+            <h3 className="text-sm font-semibold text-muted-foreground">Exclude Styles (Negative Prompt)</h3>
+            <textarea
+              value={details.negative_prompt?.exclude_styles?.join(', ') || ''}
+              onChange={(e) => handleNegativePromptChange('exclude_styles', e.target.value)}
+              rows={2}
+              className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+              placeholder="e.g., cartoon, 3d render, anime"
+            />
+          </div>
         </main>
         
         <footer className="p-4 sm:p-6 mt-auto border-t border-border bg-muted/50 space-y-3">

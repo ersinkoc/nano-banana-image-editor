@@ -26,6 +26,7 @@ interface PromptCustomizerProps {
 const initialDetails: PromptDetails = {
   medium: '', genre: '', lighting: [], camera_angle: '', color_palette: [], atmosphere: [], emotion: [], year: '',
   location: '', costume: '', subject_expression: '', subject_action: '', environmental_elements: '',
+  negative_prompt: { exclude_visuals: [], exclude_styles: [] },
 };
 
 const SettingButtonGroup: React.FC<{
