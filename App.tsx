@@ -5,7 +5,7 @@ import { PromptCustomizer } from './components/PromptCustomizer';
 import { DebugConsole } from './components/DebugConsole';
 import { SettingsModal } from './components/SettingsModal';
 import { DebugContext } from './contexts/DebugContext';
-import { generateEditPrompt, editImageWithGemini } from './services/geminiService';
+import { generateEditPrompt, editImageWithGemini, getApiUsage, resetApiUsage } from './services/geminiService';
 import * as googleDriveService from './services/googleDriveService';
 import type { Prompt, Gender, ImageData, PromptDetails, DebugLog, ArtisticStyle, HistoryEntry } from './types';
 
@@ -109,6 +109,13 @@ const ERROR_MAP: { keywords: string[], message: React.ReactNode | ((isUserKeyAct
     }
 ];
 
+type FailedAction = 
+    | { type: 'random'; payload: { gender: Gender; style: ArtisticStyle; numImages: 0 | 1 | 4 } }
+    | { type: 'custom'; payload: { prompt: Prompt; numImages: 0 | 1 | 4 } }
+    | { type: 'history'; payload: { promptToUse: Prompt } }
+    | { type: 'retrySame'; payload: {} };
+
+
 const App: React.FC = () => {
   const [originalImage, setOriginalImage] = useState<ImageData | null>(null);
   const [editedImages, setEditedImages] = useState<string[] | null>(null);
@@ -127,11 +134,12 @@ const App: React.FC = () => {
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
   const [error, setError] = useState<React.ReactNode | null>(null);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'dark');
-  const [lastFailedAction, setLastFailedAction] = useState<(() => void) | null>(null);
+  const [lastFailedAction, setLastFailedAction] = useState<FailedAction | null>(null);
 
   // User API Key State
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [apiUsage, setApiUsage] = useState({ defaultKey: 0, userKey: 0 });
 
 
   // State lifted from PromptCustomizer
@@ -294,79 +302,70 @@ const App: React.FC = () => {
   }, [originalImage, addLog, userApiKey]);
 
   const handleGenerateRandom = useCallback(async (gender: Gender, style: ArtisticStyle, numImages: 0 | 1 | 4) => {
-    const execute = async () => {
-        if (!originalImage && numImages > 0) {
-            setError("Please upload an image first.");
-            return;
-        }
-        setIsGeneratingNewPrompt(true);
-        setError(null);
-        setLastFailedAction(null);
-        setCurrentPrompt(null);
-        setEditedImages(null);
+      if (!originalImage && numImages > 0) {
+          setError("Please upload an image first.");
+          return;
+      }
+      setIsGeneratingNewPrompt(true);
+      setError(null);
+      setLastFailedAction(null);
+      setCurrentPrompt(null);
+      setEditedImages(null);
 
-        try {
-            addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender, quality, aspectRatio, style } });
-            const newPrompt = await generateEditPrompt(gender, quality, aspectRatio, style, userApiKey);
-            addLog('RESPONSE', { endpoint: 'generateEditPrompt', prompt: newPrompt });
-            await performImageEdit(newPrompt, quality, aspectRatio, numImages, removeBackground);
-        } catch(e) {
-            handleGenericError(e, 'handleGenerateRandom');
-            setLastFailedAction(() => execute);
-        } finally {
-            setIsGeneratingNewPrompt(false);
-        }
-    };
-    await execute();
+      try {
+          addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender, quality, aspectRatio, style } });
+          const newPrompt = await generateEditPrompt(gender, quality, aspectRatio, style, userApiKey);
+          addLog('RESPONSE', { endpoint: 'generateEditPrompt', prompt: newPrompt });
+          await performImageEdit(newPrompt, quality, aspectRatio, numImages, removeBackground);
+      } catch(e) {
+          handleGenericError(e, 'handleGenerateRandom');
+          setLastFailedAction({ type: 'random', payload: { gender, style, numImages } });
+      } finally {
+          setIsGeneratingNewPrompt(false);
+      }
   }, [originalImage, addLog, quality, aspectRatio, performImageEdit, userApiKey, removeBackground]);
   
   const handleGenerateCustom = useCallback(async (prompt: Prompt, numImages: 0 | 1 | 4) => {
-      const execute = async () => {
-        if (!originalImage && numImages > 0) {
-            setError("Please upload an image first.");
-            return;
-        }
-        setIsLoading(true);
-        setIsGeneratingNewPrompt(false);
-        setError(null);
-        setLastFailedAction(null);
-        setEditedImages(null);
+      if (!originalImage && numImages > 0) {
+          setError("Please upload an image first.");
+          return;
+      }
+      setIsLoading(true);
+      setIsGeneratingNewPrompt(false);
+      setError(null);
+      setLastFailedAction(null);
+      setEditedImages(null);
 
-        try {
-            await performImageEdit(prompt, quality, aspectRatio, numImages, removeBackground);
-        } catch(e) {
-            handleGenericError(e, 'handleGenerateCustom');
-            setLastFailedAction(() => execute);
-        } finally {
-            setIsLoading(false);
-        }
-      };
-      await execute();
+      try {
+          await performImageEdit(prompt, quality, aspectRatio, numImages, removeBackground);
+      } catch(e) {
+          handleGenericError(e, 'handleGenerateCustom');
+          setLastFailedAction({ type: 'custom', payload: { prompt, numImages } });
+      } finally {
+          setIsLoading(false);
+      }
   }, [originalImage, quality, aspectRatio, performImageEdit, removeBackground, userApiKey]);
 
   const handleUseHistoryPrompt = useCallback(async (promptToUse: Prompt) => {
-    const execute = async () => {
-        if (!originalImage && numImages > 0) {
-            setError("Please upload an image first to use a historical prompt.");
-            window.scrollTo(0, 0); 
-            return;
-        }
-        setIsLoading(true);
-        setIsGeneratingNewPrompt(false);
-        setError(null);
-        setLastFailedAction(null);
-        setEditedImages(null);
+      if (!originalImage && numImages > 0) {
+          setError("Please upload an image first to use a historical prompt.");
+          window.scrollTo(0, 0); 
+          return;
+      }
+      setIsLoading(true);
+      setIsGeneratingNewPrompt(false);
+      setError(null);
+      setLastFailedAction(null);
+      setEditedImages(null);
 
-        try {
-            await performImageEdit(promptToUse, quality, aspectRatio, numImages, removeBackground);
-        } catch(e) {
-            handleGenericError(e, 'handleUseHistoryPrompt');
-            setLastFailedAction(() => execute);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    await execute();
+      try {
+          await performImageEdit(promptToUse, quality, aspectRatio, numImages, removeBackground);
+      } catch(e) {
+          handleGenericError(e, 'handleUseHistoryPrompt');
+          setLastFailedAction({ type: 'history', payload: { promptToUse } });
+      } finally {
+          setIsLoading(false);
+      }
   }, [originalImage, quality, aspectRatio, numImages, performImageEdit, removeBackground, userApiKey]);
 
   const handleRetryWithSamePrompt = useCallback(async () => {
@@ -374,30 +373,43 @@ const App: React.FC = () => {
         setError("Cannot retry: No active prompt found. Please generate an image first.");
         return;
     }
-    const execute = async () => {
-        setIsLoading(true);
-        setError(null);
-        setLastFailedAction(null);
-        setEditedImages(null);
+    
+    setIsLoading(true);
+    setError(null);
+    setLastFailedAction(null);
+    setEditedImages(null);
 
-        try {
-            await performImageEdit(currentPrompt, quality, aspectRatio, numImages, removeBackground);
-        } catch(e) {
-            handleGenericError(e, 'handleRetryWithSamePrompt');
-            setLastFailedAction(() => execute);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    await execute();
+    try {
+        await performImageEdit(currentPrompt, quality, aspectRatio, numImages, removeBackground);
+    } catch(e) {
+        handleGenericError(e, 'handleRetryWithSamePrompt');
+        setLastFailedAction({ type: 'retrySame', payload: {} });
+    } finally {
+        setIsLoading(false);
+    }
   }, [currentPrompt, quality, aspectRatio, numImages, performImageEdit, removeBackground, userApiKey]);
 
 
   const handleRetry = () => {
       if (lastFailedAction) {
           setError(null);
+          const { type, payload } = lastFailedAction;
           setLastFailedAction(null);
-          lastFailedAction();
+
+          switch (type) {
+              case 'random':
+                  handleGenerateRandom(payload.gender, payload.style, payload.numImages);
+                  break;
+              case 'custom':
+                  handleGenerateCustom(payload.prompt, payload.numImages);
+                  break;
+              case 'history':
+                  handleUseHistoryPrompt(payload.promptToUse);
+                  break;
+              case 'retrySame':
+                  handleRetryWithSamePrompt();
+                  break;
+          }
       }
   };
 
@@ -452,11 +464,20 @@ const App: React.FC = () => {
     localStorage.removeItem('userApiKey');
     setIsSettingsModalOpen(false);
   };
+  
+  const handleOpenSettings = () => {
+      setApiUsage(getApiUsage());
+      setIsSettingsModalOpen(true);
+  };
+  
+  const handleResetApiUsage = () => {
+      setApiUsage(resetApiUsage());
+  };
 
   return (
     <DebugContext.Provider value={{ logs, addLog }}>
       <div className="flex flex-col min-h-screen">
-        <Header theme={theme} setTheme={setTheme} onOpenSettings={() => setIsSettingsModalOpen(true)} isUserKeyActive={!!userApiKey} />
+        <Header theme={theme} setTheme={setTheme} onOpenSettings={handleOpenSettings} isUserKeyActive={!!userApiKey} />
         <main className="container mx-auto p-4 sm:p-6 flex-grow w-full">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
             <aside className="lg:col-span-4 xl:col-span-3">
@@ -528,6 +549,8 @@ const App: React.FC = () => {
         onSaveApiKey={handleSaveApiKey}
         onClearApiKey={handleClearApiKey}
         currentApiKey={userApiKey}
+        apiUsage={apiUsage}
+        onResetUsage={handleResetApiUsage}
       />
     </DebugContext.Provider>
   );

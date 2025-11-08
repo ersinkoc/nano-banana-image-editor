@@ -3,6 +3,53 @@ import type { Prompt, ArtisticStyle } from '../types';
 
 const PROMPT_GENERATION_MODEL = 'gemini-2.5-flash';
 const IMAGE_EDIT_MODEL = 'gemini-2.5-flash-image';
+const USAGE_STORAGE_KEY = 'apiUsageStats';
+
+// --- API Usage Tracking ---
+
+type ApiUsage = { defaultKey: number; userKey: number };
+
+export const getApiUsage = (): ApiUsage => {
+    try {
+        const storedUsage = localStorage.getItem(USAGE_STORAGE_KEY);
+        if (storedUsage) {
+            const parsed = JSON.parse(storedUsage);
+            return {
+                defaultKey: typeof parsed.defaultKey === 'number' ? parsed.defaultKey : 0,
+                userKey: typeof parsed.userKey === 'number' ? parsed.userKey : 0,
+            };
+        }
+    } catch (e) {
+        console.error("Failed to read API usage stats from localStorage", e);
+    }
+    return { defaultKey: 0, userKey: 0 };
+};
+
+const incrementApiUsage = (isUserKey: boolean) => {
+    const currentUsage = getApiUsage();
+    const newUsage = {
+        ...currentUsage,
+        [isUserKey ? 'userKey' : 'defaultKey']: currentUsage[isUserKey ? 'userKey' : 'defaultKey'] + 1,
+    };
+    try {
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(newUsage));
+    } catch (e) {
+        console.error("Failed to save API usage stats to localStorage", e);
+    }
+};
+
+export const resetApiUsage = (): ApiUsage => {
+    const defaultUsage = { defaultKey: 0, userKey: 0 };
+    try {
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(defaultUsage));
+    } catch (e) {
+        console.error("Failed to reset API usage stats in localStorage", e);
+    }
+    return defaultUsage;
+};
+
+
+// --- Gemini Client Initialization ---
 
 const getAiClient = (apiKey?: string | null): GoogleGenAI => {
     const finalApiKey = apiKey || process.env.API_KEY;
@@ -204,153 +251,182 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
     // Part 1: Main Task
     let styleInstruction: string;
     switch (style) {
-        case 'Abstract Expressionism':
-            styleInstruction = `For this request, lean towards an Abstract Expressionist style. Emphasize spontaneous, non-representational creation with a focus on raw emotion and the physical act of art-making. Think Jackson Pollock.`;
-            break;
-        case 'Airbrush':
-            styleInstruction = `For this request, emulate the smooth gradients and soft, blended look of airbrush art, popular in 1980s commercial illustration.`;
-            break;
-        case 'Art Deco':
-            styleInstruction = `For this request, lean towards an Art Deco style. Use sleek, geometric shapes, elegant lines, and luxurious, often metallic, materials. Think of 1920s architecture and design.`;
-            break;
-        case 'Art Nouveau':
-            styleInstruction = `For this request, lean towards an Art Nouveau style. Use long, sinuous, organic lines, floral and plant-inspired motifs, and a decorative, ornamental quality. Think Alphonse Mucha.`;
-            break;
-        case 'Artistic':
-            styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`;
-            break;
-        case 'Baroque':
-            styleInstruction = `For this request, lean towards a Baroque style. Create scenes with dramatic intensity, rich, deep color, and strong contrasts of light and shadow. Think Caravaggio or Rembrandt.`;
-            break;
-        case 'Bauhaus':
-            styleInstruction = `For this request, lean towards a Bauhaus style. Focus on functionality, geometric purity, and a minimalist aesthetic that combines fine arts and crafts. Think Wassily Kandinsky or Paul Klee.`;
-            break;
-        case 'Biopunk':
-            styleInstruction = `For this request, lean towards a Biopunk style. Explore themes of genetic engineering and biological enhancement, often with organic, unsettling, and futuristic imagery.`;
-            break;
-        case 'Collage':
-            styleInstruction = `For this request, create an image that looks like it's assembled from various different forms, such as paper, photographs, and other found objects.`;
-            break;
-        case 'Cubist':
-            styleInstruction = `For this request, lean towards a Cubist style. The subject should be analyzed, broken up, and reassembled in an abstracted form—depicting the subject from a multitude of viewpoints. Think Picasso or Braque.`;
-            break;
-        case 'Cyberpunk':
-            styleInstruction = `For this request, lean towards a Cyberpunk style. Focus on a high-tech, low-life future with neon lights, cybernetics, and a dark, dystopian atmosphere. Think Blade Runner.`;
-            break;
-        case 'Dieselpunk':
-            styleInstruction = `For this request, lean towards a Dieselpunk style. Combine the aesthetics of the 1920s-1950s with futuristic technology, featuring diesel-powered machinery and a gritty, industrial feel.`;
-            break;
-        case 'Double Exposure':
-            styleInstruction = `For this request, create an image that looks like two different photographs have been superimposed onto one another, blending scenes and subjects.`;
-            break;
-        case 'Etching':
-            styleInstruction = `For this request, emulate the fine, detailed lines and cross-hatching of an intaglio printmaking process.`;
-            break;
-        case 'Fantasy Art':
-            styleInstruction = `For this request, lean towards a Fantasy Art style. Create scenes with magical or supernatural themes, mythical creatures, and epic, imagined landscapes. Think high fantasy book covers.`;
-            break;
-        case 'Fauvism':
-            styleInstruction = `For this request, lean towards Fauvism. Employ intense, non-naturalistic colors and bold brushstrokes to convey emotion directly. Think Henri Matisse.`;
-            break;
-        case 'Folk Art':
-            styleInstruction = `For this request, emulate traditional, often rustic and decorative art styles that reflect a specific community or culture.`;
-            break;
-        case 'Glitch Art':
-            styleInstruction = `For this request, intentionally use digital errors and artifacts for aesthetic purposes, creating fragmented, distorted, and colorful images.`;
-            break;
-        case 'Gothic Art':
-            styleInstruction = `For this request, create a style reminiscent of the medieval period, with dramatic, ornate details, pointed arches, and often religious or dark themes.`;
-            break;
-        case 'Gouache':
-            styleInstruction = `For this request, create the look of opaque watercolor, with flat, vibrant color fields and a matte finish.`;
-            break;
-        case 'Impressionistic':
-            styleInstruction = `For this request, lean towards an Impressionistic style. Think visible brushstrokes, emphasis on light and its changing qualities, and ordinary subject matter. Like a painting by Monet or Renoir.`;
-            break;
-        case 'Ink Wash Painting':
-            styleInstruction = `For this request, use varying tones of black or colored ink to create a monochromatic, atmospheric painting style similar to traditional East Asian art.`;
-            break;
-        case 'Line Art':
-            styleInstruction = `For this request, lean towards a minimalist Line Art style. The image should be composed of clean, simple lines with minimal shading or color, focusing on form and shape.`;
-            break;
-        case 'Lomography':
-            styleInstruction = `For this request, emulate the look of Lomography cameras, with high contrast, saturated colors, vignettes, and unpredictable light leaks.`;
-            break;
-        case 'Minimalism':
-            styleInstruction = `For this request, lean towards a Minimalist style. Use a limited number of simple elements, clean lines, and negative space to create a powerful effect. Focus on extreme simplicity.`;
-            break;
-        case 'Neoclassicism':
-            styleInstruction = `For this request, adopt the style of ancient Greek and Roman art, emphasizing order, clarity, and idealism. Think Jacques-Louis David.`;
-            break;
-        case 'Pastel Drawing':
-            styleInstruction = `For this request, emulate the soft, blendable texture of pastel sticks, creating a painterly effect with rich, soft colors.`;
-            break;
-        case 'Pixel Art':
-            styleInstruction = `For this request, lean towards a retro Pixel Art style. The concept should be suitable for a 16-bit or 32-bit video game, with clear pixel clusters and a limited color palette.`;
-            break;
-        case 'Pop Art':
-            styleInstruction = `For this request, lean towards a Pop Art style. Think bold outlines, bright, saturated colors, and imagery from popular culture. Think Andy Warhol or Roy Lichtenstein.`;
-            break;
-        case 'Post-Impressionism':
-            styleInstruction = `For this request, use vivid colors, thick application of paint, and distinctive brushstrokes, but with a greater emphasis on geometric forms and emotional expression than Impressionism. Think Van Gogh or Cézanne.`;
-            break;
-        case 'Psychedelic':
-            styleInstruction = `For this request, use surreal, abstract imagery, vibrant, distorted colors, and intricate patterns inspired by 1960s counter-culture.`;
-            break;
-        case 'Renaissance':
-            styleInstruction = `For this request, emulate the style of the masters from the 14th-16th centuries, focusing on realism, perspective, and classical themes. Think Leonardo da Vinci or Michelangelo.`;
-            break;
-        case 'Risograph':
-            styleInstruction = `For this request, emulate the look of a Risograph print, with a limited color palette, grainy texture, and characteristic misregistration.`;
-            break;
-        case 'Rococo':
-            styleInstruction = `For this request, create light, ornate, and elaborate scenes with a playful and whimsical tone, often featuring pastel colors and asymmetrical designs. Think Jean-Honoré Fragonard.`;
-            break;
-        case 'Romanticism':
-            styleInstruction = `For this request, emphasize intense emotion, individualism, and the awe-inspiring power of nature. Think Caspar David Friedrich or J.M.W. Turner.`;
-            break;
-        case 'Stained Glass':
-            styleInstruction = `For this request, create an image that looks like it is made from pieces of colored glass held together by lead strips, with bold black outlines and vibrant, translucent colors.`;
-            break;
-        case 'Steampunk':
-            styleInstruction = `For this request, lean towards a Steampunk style. Combine Victorian-era aesthetics with industrial, steam-powered machinery. Think brass, gears, and intricate clockwork.`;
-            break;
-        case 'Street Art':
-            styleInstruction = `For this request, emulate the style of graffiti, stencils, and murals found in urban environments. Think Banksy or Shepard Fairey.`;
-            break;
-        case 'Surrealist':
-            styleInstruction = `For this request, lean towards a Surrealist style. Create dream-like, bizarre, and illogical scenes. Think of the works of Salvador Dalí or Max Ernst.`;
-            break;
-        case 'Synthwave':
-            styleInstruction = `For this request, lean towards a Synthwave style. Think 1980s retrofuturism, neon grids, vibrant pinks and blues, and a nostalgic, electronic feel.`;
-            break;
-        case 'Tattoo Art':
-            styleInstruction = `For this request, adopt styles common in tattooing, such as bold outlines, specific shading techniques, and traditional motifs (e.g., American Traditional, Irezumi).`;
-            break;
-        case 'Technical Drawing':
-            styleInstruction = `For this request, emulate the precise, detailed look of a blueprint or technical illustration, with clean lines, annotations, and a focus on structure.`;
-            break;
-        case 'Tribal Art':
-            styleInstruction = `For this request, use bold patterns, symbolic imagery, and natural materials inspired by the artistic traditions of indigenous cultures.`;
-            break;
-        case 'Ukiyo-e':
-            styleInstruction = `For this request, adopt the style of Japanese woodblock prints from the Edo period. Feature flowing outlines, flat areas of color, and subjects from history or daily life. Think Hokusai or Hiroshige.`;
-            break;
-        case 'Vaporwave':
-            styleInstruction = `For this request, create a nostalgic, surrealist aesthetic inspired by 1980s and 1990s internet culture, with classical statues, glitch art, and pastel colors.`;
-            break;
-        case 'Vector Art':
-            styleInstruction = `For this request, create a clean, scalable image with sharp lines, flat colors, and geometric precision, as if made with vector graphics software.`;
-            break;
-        case 'Vintage Photo':
-            styleInstruction = `For this request, lean towards a vintage photography style. Emulate the look of old film, daguerreotypes, or sepia-toned prints from a specific historical era.`;
-            break;
-        case 'Voxel Art':
-            styleInstruction = `For this request, create a 3D scene that looks like it's built from 3D pixels (voxels), giving it a blocky, retro 3D game aesthetic.`;
-            break;
-        case 'Woodcut Print':
-            styleInstruction = `For this request, create a look with stark contrasts and bold, graphic lines, as if carved from a wooden block.`;
-            break;
+        case 'Abstract Expressionism': styleInstruction = `For this request, lean towards an Abstract Expressionist style. Emphasize spontaneous, non-representational creation with a focus on raw emotion and the physical act of art-making. Think Jackson Pollock.`; break;
+        case 'Afrofuturism': styleInstruction = `For this request, lean towards an Afrofuturism style. Combine science fiction, history, and fantasy to explore the African diaspora experience and imagine a technologically advanced future.`; break;
+        case 'Airbrush': styleInstruction = `For this request, emulate the smooth gradients and soft, blended look of airbrush art, popular in 1980s commercial illustration.`; break;
+        case 'Algorithmic Art': styleInstruction = `For this request, generate an image that appears to be created by an autonomous system or algorithm, often featuring complex geometric patterns and fractals.`; break;
+        case 'Anaglyph 3D': styleInstruction = `For this request, create an image with a stereoscopic 3D effect, using red and cyan color channels to create an illusion of depth when viewed with 3D glasses.`; break;
+        case 'Anamorphic': styleInstruction = `For this request, create a distorted image that appears normal only when viewed from a specific angle or with a special device.`; break;
+        case 'Ancient Egyptian Art': styleInstruction = `For this request, emulate the stylized and symbolic art of ancient Egypt, featuring composite views, hieroglyphs, and a formal, rigid structure.`; break;
+        case 'Artistic': styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`; break;
+        case 'ASCII Art': styleInstruction = `For this request, create an image that is formed from the characters of the ASCII standard, a text-based visual art.`; break;
+        case 'Assemblage': styleInstruction = `For this request, create an image that looks like a 3D collage, constructed from found objects and non-art materials.`; break;
+        case 'Aztec Art': styleInstruction = `For this request, emulate the art of the Aztec Empire, featuring strong geometric patterns, animal motifs, and religious symbolism.`; break;
+        case 'Art Deco': styleInstruction = `For this request, lean towards an Art Deco style. Use sleek, geometric shapes, elegant lines, and luxurious, often metallic, materials. Think of 1920s architecture and design.`; break;
+        case 'Art Nouveau': styleInstruction = `For this request, lean towards an Art Nouveau style. Use long, sinuous, organic lines, floral and plant-inspired motifs, and a decorative, ornamental quality. Think Alphonse Mucha.`; break;
+
+        case 'Baroque': styleInstruction = `For this request, lean towards a Baroque style. Create scenes with dramatic intensity, rich, deep color, and strong contrasts of light and shadow. Think Caravaggio or Rembrandt.`; break;
+        case 'Bauhaus': styleInstruction = `For this request, lean towards a Bauhaus style. Focus on functionality, geometric purity, and a minimalist aesthetic that combines fine arts and crafts. Think Wassily Kandinsky or Paul Klee.`; break;
+        case 'Biopunk': styleInstruction = `For this request, lean towards a Biopunk style. Explore themes of genetic engineering and biological enhancement, often with organic, unsettling, and futuristic imagery.`; break;
+        case 'Boro': styleInstruction = `For this request, emulate the Japanese art of Boro, using patched and mended textiles to create a beautiful, textured, and layered look.`; break;
+        case 'Botanical Illustration': styleInstruction = `For this request, create a precise and detailed scientific illustration of a plant, emphasizing accuracy and form.`; break;
+        case 'Brutalism': styleInstruction = `For this request, adopt a Brutalist architectural style, featuring raw, unadorned concrete, massive blocky forms, and a stark, imposing aesthetic.`; break;
+        case 'Byzantine Art': styleInstruction = `For this request, emulate the art of the Byzantine Empire, characterized by rich colors, flattened perspectives, and religious iconography, often with gold backgrounds.`; break;
+
+        case 'Caricature': styleInstruction = `For this request, create a portrait that exaggerates or distorts the subject's features for a comedic or grotesque effect.`; break;
+        case 'Celtic Art': styleInstruction = `For this request, use intricate patterns of knots, spirals, and animal forms characteristic of Celtic art.`; break;
+        case 'Chiaroscuro': styleInstruction = `For this request, use strong contrasts between light and dark to model three-dimensional forms, creating a dramatic, theatrical effect. Think Caravaggio.`; break;
+        case 'Chibi': styleInstruction = `For this request, draw the subject in a Japanese 'Chibi' style, with a small body, oversized head, and cute, simple features.`; break;
+        case 'Cloisonnism': styleInstruction = `For this request, use a post-Impressionist style with bold, flat forms separated by dark contours, similar to cloisonné enamelwork. Think Paul Gauguin.`; break;
+        case 'Collage': styleInstruction = `For this request, create an image that looks like it's assembled from various different forms, such as paper, photographs, and other found objects.`; break;
+        case 'Constructivism': styleInstruction = `For this request, adopt the Russian Constructivist style, using geometric abstraction and social purpose to create a dynamic, modern look.`; break;
+        case 'Cross-hatching': styleInstruction = `For this request, use intersecting sets of parallel lines to create shading and texture, as in a drawing or engraving.`; break;
+        case 'Cubist': styleInstruction = `For this request, lean towards a Cubist style. The subject should be analyzed, broken up, and reassembled in an abstracted form—depicting the subject from a multitude of viewpoints. Think Picasso or Braque.`; break;
+        case 'Cyanotype': styleInstruction = `For this request, create the look of a Cyanotype, a photographic printing process that produces a cyan-blue print.`; break;
+        case 'Cyberpunk': styleInstruction = `For this request, lean towards a Cyberpunk style. Focus on a high-tech, low-life future with neon lights, cybernetics, and a dark, dystopian atmosphere. Think Blade Runner.`; break;
+
+        case 'Dadaism': styleInstruction = `For this request, adopt a Dadaist approach, rejecting logic and embracing irrationality, nonsense, and anti-art. The result can be absurd or satirical.`; break;
+        case 'De Stijl': styleInstruction = `For this request, use the De Stijl (The Style) aesthetic, with pure abstraction and universality by a reduction to the essentials of form and color; think vertical and horizontal lines and primary colors. Think Piet Mondrian.`; break;
+        case 'Decoupage': styleInstruction = `For this request, create the effect of decorating an object by gluing colored paper cutouts onto it in combination with special paint effects.`; break;
+        case 'Demoscene': styleInstruction = `For this request, emulate the aesthetic of the Demoscene, a computer art subculture focused on creating impressive real-time audiovisual presentations (demos).`; break;
+        case 'Dieselpunk': styleInstruction = `For this request, lean towards a Dieselpunk style. Combine the aesthetics of the 1920s-1950s with futuristic technology, featuring diesel-powered machinery and a gritty, industrial feel.`; break;
+        case 'Didone': styleInstruction = `For this request, create a typographical design using Didone (or modern) serifs, characterized by an extreme contrast between thick and thin lines.`; break;
+        case 'Dot Painting (Aboriginal)': styleInstruction = `For this request, emulate Australian Aboriginal dot painting, using dots of color to create intricate patterns and tell a story.`; break;
+        case 'Double Exposure': styleInstruction = `For this request, create an image that looks like two different photographs have been superimposed onto one another, blending scenes and subjects.`; break;
+
+        case 'Encaustic Painting': styleInstruction = `For this request, use heated beeswax mixed with colored pigments to create a textured, layered painting.`; break;
+        case 'Etching': styleInstruction = `For this request, emulate the fine, detailed lines and cross-hatching of an intaglio printmaking process.`; break;
+        case 'Expressionism': styleInstruction = `For this request, present the world from a subjective perspective, distorting it radically for emotional effect in order to evoke moods or ideas. Think Edvard Munch.`; break;
+
+        case 'Fantasy Art': styleInstruction = `For this request, lean towards a Fantasy Art style. Create scenes with magical or supernatural themes, mythical creatures, and epic, imagined landscapes. Think high fantasy book covers.`; break;
+        case 'Fauvism': styleInstruction = `For this request, lean towards Fauvism. Employ intense, non-naturalistic colors and bold brushstrokes to convey emotion directly. Think Henri Matisse.`; break;
+        case 'Figurative': styleInstruction = `For this request, create art that is clearly derived from real object sources and is, by definition, representational.`; break;
+        case 'Filigree': styleInstruction = `For this request, create a delicate, intricate ornamental work made from fine wires of precious metal.`; break;
+        case 'Flat Design': styleInstruction = `For this request, use a minimalist UI design style with flat, two-dimensional elements and bright colors.`; break;
+        case 'Folk Art': styleInstruction = `For this request, emulate traditional, often rustic and decorative art styles that reflect a specific community or culture.`; break;
+        case 'Fresco': styleInstruction = `For this request, emulate the technique of mural painting onto freshly laid, or wet lime plaster. The colors dry and set with the plaster to become a permanent part of the wall.`; break;
+        case 'Frottage': styleInstruction = `For this request, create the effect of taking a rubbing from an uneven surface to form a work of art, as popularized by Max Ernst.`; break;
+        case 'Futurism': styleInstruction = `For this request, adopt the Futurist style, emphasizing dynamism, speed, technology, youth, and violence.`; break;
+        
+        case 'Geometric Abstraction': styleInstruction = `For this request, use geometric forms placed into non-illusionistic space and combined into non-objective compositions.`; break;
+        case 'Glitch Art': styleInstruction = `For this request, intentionally use digital errors and artifacts for aesthetic purposes, creating fragmented, distorted, and colorful images.`; break;
+        case 'Gothic Art': styleInstruction = `For this request, create a style reminiscent of the medieval period, with dramatic, ornate details, pointed arches, and often religious or dark themes.`; break;
+        case 'Gouache': styleInstruction = `For this request, create the look of opaque watercolor, with flat, vibrant color fields and a matte finish.`; break;
+        case 'Graffiti': styleInstruction = `For this request, adopt a graffiti or street art aesthetic, using spray paint, stencils, or markers.`; break;
+        case 'Grisaille': styleInstruction = `For this request, create a painting executed entirely in shades of grey or another neutral greyish color.`; break;
+        case 'Grotesque': styleInstruction = `For this request, focus on strange, mysterious, magnificent, fantastic, hideous, ugly, incongruous, unpleasant, or disgusting, and thus is used to describe weird shapes and distorted forms.`; break;
+
+        case 'Haida Art': styleInstruction = `For this request, emulate the art of the Haida people, known for its bold lines (formlines), limited color palette (black, red, blue-green), and stylized animal crests.`; break;
+        case 'Hard-edge Painting': styleInstruction = `For this request, use paintings in which abrupt transitions are found between color areas. Color areas are often of one unvarying color.`; break;
+        case 'Harlem Renaissance': styleInstruction = `For this request, emulate the art of the Harlem Renaissance, celebrating African-American life and culture with a variety of styles from realist to modernist.`; break;
+        case 'High-Tech': styleInstruction = `For this request, adopt a High-Tech architectural and design style, incorporating elements of the advanced technology and industrial industry into the design.`; break;
+        case 'Holography': styleInstruction = `For this request, create an image that looks like a three-dimensional hologram, with a shimmering, light-based appearance.`; break;
+        case 'Hyperrealism': styleInstruction = `For this request, create a painting or sculpture resembling a high-resolution photograph. Hyperrealism is considered an advancement of Photorealism.`; break;
+
+        case 'Impasto': styleInstruction = `For this request, use a painting technique where paint is laid on an area of the surface in very thick layers, usually thick enough that the brush or painting-knife strokes are visible.`; break;
+        case 'Impressionistic': styleInstruction = `For this request, lean towards an Impressionistic style. Think visible brushstrokes, emphasis on light and its changing qualities, and ordinary subject matter. Like a painting by Monet or Renoir.`; break;
+        case 'Infrared Photography': styleInstruction = `For this request, emulate infrared photography, creating a dreamlike image where foliage appears white and skies are dark.`; break;
+        case 'Ink Wash Painting': styleInstruction = `For this request, use varying tones of black or colored ink to create a monochromatic, atmospheric painting style similar to traditional East Asian art.`; break;
+        case 'International Typographic Style': styleInstruction = `For this request, adopt the Swiss Style of graphic design, emphasizing cleanliness, readability, and objectivity through asymmetric layouts and sans-serif typefaces.`; break;
+        case 'Islamic Art': styleInstruction = `For this request, use intricate geometric patterns (arabesques), calligraphy, and vegetal motifs characteristic of Islamic art.`; break;
+
+        case 'Japonisme': styleInstruction = `For this request, emulate the influence of Japanese art, especially ukiyo-e, on Western art, featuring flattened perspectives and decorative patterns.`; break;
+        case 'Kawaii': styleInstruction = `For this request, adopt the Japanese 'kawaii' (cute) culture aesthetic, with charming, childlike characters and pastel colors.`; break;
+        case 'Kinetic Art': styleInstruction = `For this request, create an image that appears to have movement, or depends on motion for its effect.`; break;
+        case 'Kintsugi': styleInstruction = `For this request, emulate the Japanese art of Kintsugi, where broken pottery is repaired with lacquer dusted with powdered gold, highlighting the cracks as part of the object's history.`; break;
+        case 'Kirigami': styleInstruction = `For this request, create a variation of origami that includes cutting of the paper, resulting in a design that is often symmetrical and intricate.`; break;
+
+        case 'Land Art': styleInstruction = `For this request, create a work of art made directly in the landscape, sculpting the land itself or making structures in the landscape using natural materials.`; break;
+        case 'Letterpress': styleInstruction = `For this request, emulate the look of letterpress printing, with a tactile impression of type and graphics into the paper.`; break;
+        case 'Light and Space': styleInstruction = `For this request, create art focused on perceptual phenomena, such as light, volume and scale, where the installation itself is the work of art.`; break;
+        case 'Line Art': styleInstruction = `For this request, lean towards a minimalist Line Art style. The image should be composed of clean, simple lines with minimal shading or color, focusing on form and shape.`; break;
+        case 'Lomography': styleInstruction = `For this request, emulate the look of Lomography cameras, with high contrast, saturated colors, vignettes, and unpredictable light leaks.`; break;
+        case 'Lowbrow (Pop Surrealism)': styleInstruction = `For this request, adopt a Lowbrow or Pop Surrealist style, which has its roots in underground comix, punk music, and hot-rod street culture.`; break;
+        case 'Lyrical Abstraction': styleInstruction = `For this request, create a soft, romantic, and fluid form of abstract painting, emphasizing color and mood.`; break;
+
+        case 'Macrame': styleInstruction = `For this request, create an image with the texture and patterns of macrame, a form of textile produced using knotting techniques.`; break;
+        case 'Majolica': styleInstruction = `For this request, emulate Italian tin-glazed pottery, known for its bright, vibrant colors on a white background.`; break;
+        case 'Mandala': styleInstruction = `For this request, create a spiritual and ritual symbol in Hinduism and Buddhism, representing the universe. It often exhibits a balanced, geometric design.`; break;
+        case 'Mannerism': styleInstruction = `For this request, adopt the Mannerist style, with its artificial and elegant qualities, elongated proportions, and intellectual sophistication.`; break;
+        case 'Marquetry': styleInstruction = `For this request, create the effect of applying pieces of veneer to a structure to form decorative patterns, designs or pictures.`; break;
+        case 'Memphis Group': styleInstruction = `For this request, use the Memphis Group design style of the 1980s, characterized by colorful, asymmetrical, and kitschy designs.`; break;
+        case 'Metaphysical Art': styleInstruction = `For this request, create a dreamlike, metaphysical scene with sharp contrasts in light and shadow, and a mysterious, enigmatic quality. Think Giorgio de Chirico.`; break;
+        case 'Mexican Muralism': styleInstruction = `For this request, emulate the grand, narrative-driven murals of Mexican artists like Diego Rivera, often with social and political themes.`; break;
+        case 'Micrography': styleInstruction = `For this request, create a Jewish art form that uses tiny Hebrew letters to form representational, geometric and abstract designs.`; break;
+        case 'Minimalism': styleInstruction = `For this request, lean towards a Minimalist style. Use a limited number of simple elements, clean lines, and negative space to create a powerful effect. Focus on extreme simplicity.`; break;
+        case 'Minoan Art': styleInstruction = `For this request, emulate the art of the Bronze Age Minoan civilization, known for its lively, nature-inspired frescoes and pottery.`; break;
+        case 'Miserere': styleInstruction = `For this request, create a small wooden shelf on the underside of a folding seat in a church, typically carved with secular or profane subjects.`; break;
+        case 'Mosaic': styleInstruction = `For this request, create an image from an assemblage of small pieces of colored glass, stone, or other materials.`; break;
+        
+        case 'Nautical': styleInstruction = `For this request, use themes and imagery related to the sea, sailors, and maritime life.`; break;
+        case 'Neoclassicism': styleInstruction = `For this request, adopt the style of ancient Greek and Roman art, emphasizing order, clarity, and idealism. Think Jacques-Louis David.`; break;
+        case 'Neo-Impressionism': styleInstruction = `For this request, use a technique like Pointillism or Divisionism, applying separate dots or strokes of color that interact in the viewer's eye. Think Georges Seurat.`; break;
+        
+        case 'Op Art': styleInstruction = `For this request, use optical illusions to create an impression of movement, hidden images, or vibrating patterns.`; break;
+        case 'Origami': styleInstruction = `For this request, create an image that looks like it's made from folded paper, with sharp creases and geometric shapes.`; break;
+        case 'Orphism': styleInstruction = `For this request, create a form of Cubism that focuses on pure abstraction and bright colors, influenced by Fauvism.`; break;
+        case 'Outsider Art': styleInstruction = `For this request, emulate art created by self-taught or naive art makers, often with a raw, unconventional style.`; break;
+        
+        case 'Paper Quilling': styleInstruction = `For this request, use strips of paper that have been rolled, shaped, and glued together to create decorative designs.`; break;
+        case 'Parchment Craft': styleInstruction = `For this request, create art on parchment paper using techniques such as embossing, perforating, stippling, cutting and coloring.`; break;
+        case 'Pastel Drawing': styleInstruction = `For this request, emulate the soft, blendable texture of pastel sticks, creating a painterly effect with rich, soft colors.`; break;
+        case 'Persian Miniature': styleInstruction = `For this request, create a small, detailed painting from a Persian manuscript, characterized by its rich colors and intricate composition.`; break;
+        case 'Photorealism': styleInstruction = `For this request, create a painting that is as realistic as a photograph, often focusing on mundane subjects.`; break;
+        case 'Pinhole Photography': styleInstruction = `For this request, emulate the look of a pinhole camera, with soft focus, high depth of field, and often long exposure times.`; break;
+        case 'Pixel Art': styleInstruction = `For this request, lean towards a retro Pixel Art style. The concept should be suitable for a 16-bit or 32-bit video game, with clear pixel clusters and a limited color palette.`; break;
+        case 'Pointillism': styleInstruction = `For this request, create the image using small, distinct dots of color applied in patterns to form an image. Think Georges Seurat.`; break;
+        case 'Pop Art': styleInstruction = `For this request, lean towards a Pop Art style. Think bold outlines, bright, saturated colors, and imagery from popular culture. Think Andy Warhol or Roy Lichtenstein.`; break;
+        case 'Post-Impressionism': styleInstruction = `For this request, use vivid colors, thick application of paint, and distinctive brushstrokes, but with a greater emphasis on geometric forms and emotional expression than Impressionism. Think Van Gogh or Cézanne.`; break;
+        case 'Precisionism': styleInstruction = `For this request, emulate the first real indigenous modern art movement in the United States, celebrating the industrial landscape with crisp, geometric forms.`; break;
+        case 'Primitivism': styleInstruction = `For this request, emulate the aesthetic of prehistoric or non-Western art, often with a raw, unrefined quality.`; break;
+        case 'Psychedelic': styleInstruction = `For this request, use surreal, abstract imagery, vibrant, distorted colors, and intricate patterns inspired by 1960s counter-culture.`; break;
+        case 'Pyrography': styleInstruction = `For this request, create the art of decorating wood or other materials with burn marks resulting from the controlled application of a heated object.`; break;
+        
+        case 'Rayonism': styleInstruction = `For this request, use an abstract art style that depicts rays of light and their reflections.`; break;
+        case 'Renaissance': styleInstruction = `For this request, emulate the style of the masters from the 14th-16th centuries, focusing on realism, perspective, and classical themes. Think Leonardo da Vinci or Michelangelo.`; break;
+        case 'Risograph': styleInstruction = `For this request, emulate the look of a Risograph print, with a limited color palette, grainy texture, and characteristic misregistration.`; break;
+        case 'Rococo': styleInstruction = `For this request, create light, ornate, and elaborate scenes with a playful and whimsical tone, often featuring pastel colors and asymmetrical designs. Think Jean-Honoré Fragonard.`; break;
+        case 'Roman Art': styleInstruction = `For this request, emulate the art of Ancient Rome, known for its realistic portraiture, historical narratives, and grand architecture.`; break;
+        case 'Romanticism': styleInstruction = `For this request, emphasize intense emotion, individualism, and the awe-inspiring power of nature. Think Caspar David Friedrich or J.M.W. Turner.`; break;
+        case 'Russian Icons': styleInstruction = `For this request, create a religious icon in the traditional Russian Orthodox style, with stylized figures, symbolic colors, and often a gold leaf background.`; break;
+
+        case 'Sfumato': styleInstruction = `For this request, use a painting technique for softening the transition between colors, mimicking an area beyond what the human eye is focusing on. Think Leonardo da Vinci's Mona Lisa.`; break;
+        case 'Sgraffito': styleInstruction = `For this request, use a technique of applying a layer of plaster or paint, and then scratching it away to reveal a lower layer of a different color.`; break;
+        case 'Shibori': styleInstruction = `For this request, emulate the Japanese manual resist dyeing technique, which produces a number of different patterns on fabric.`; break;
+        case 'Social Realism': styleInstruction = `For this request, create art that draws attention to the everyday conditions of the working class and the poor.`; break;
+        case 'Sots Art': styleInstruction = `For this request, use a Soviet version of Pop Art, combining elements of Socialist Realism and Western Pop Art in a conceptual framework.`; break;
+        case 'Sound Art': styleInstruction = `For this request, create a visual representation of a sound installation or an art form in which sound is the primary medium.`; break;
+        case 'Stained Glass': styleInstruction = `For this request, create an image that looks like it is made from pieces of colored glass held together by lead strips, with bold black outlines and vibrant, translucent colors.`; break;
+        case 'Steampunk': styleInstruction = `For this request, lean towards a Steampunk style. Combine Victorian-era aesthetics with industrial, steam-powered machinery. Think brass, gears, and intricate clockwork.`; break;
+        case 'Stippling': styleInstruction = `For this request, create a drawing using numerous small dots or specks.`; break;
+        case 'Street Art': styleInstruction = `For this request, emulate the style of graffiti, stencils, and murals found in urban environments. Think Banksy or Shepard Fairey.`; break;
+        case 'Suprematism': styleInstruction = `For this request, adopt the Russian abstract art movement characterized by basic geometric forms, such as circles, squares, lines, and rectangles, painted in a limited range of colors. Think Kazimir Malevich.`; break;
+        case 'Surrealist': styleInstruction = `For this request, lean towards a Surrealist style. Create dream-like, bizarre, and illogical scenes. Think of the works of Salvador Dalí or Max Ernst.`; break;
+        case 'Symbolism': styleInstruction = `For this request, use symbols and indirect suggestion to express mystical ideas, emotions, and states of mind.`; break;
+        case 'Synthetism': styleInstruction = `For this request, use a post-Impressionist style that emphasizes two-dimensional flat patterns, rejecting naturalism and Impressionism.`; break;
+        case 'Synthwave': styleInstruction = `For this request, lean towards a Synthwave style. Think 1980s retrofuturism, neon grids, vibrant pinks and blues, and a nostalgic, electronic feel.`; break;
+
+        case 'Tachisme': styleInstruction = `For this request, use a French style of abstract painting popular in the 1940s and 1950s, characterized by splotches or stains of color.`; break;
+        case 'Tattoo Art': styleInstruction = `For this request, adopt styles common in tattooing, such as bold outlines, specific shading techniques, and traditional motifs (e.g., American Traditional, Irezumi).`; break;
+        case 'Technical Drawing': styleInstruction = `For this request, emulate the precise, detailed look of a blueprint or technical illustration, with clean lines, annotations, and a focus on structure.`; break;
+        case 'Tenebrism': styleInstruction = `For this request, use a dramatic form of chiaroscuro where darkness is a dominating feature of the image.`; break;
+        case 'Tiki Art': styleInstruction = `For this request, adopt the style of mid-century Tiki culture, featuring romanticized imagery of tropical locations, carved tikis, and exotic cocktails.`; break;
+        case 'Tribal Art': styleInstruction = `For this request, use bold patterns, symbolic imagery, and natural materials inspired by the artistic traditions of indigenous cultures.`; break;
+        case 'Trompe-l\'œil': styleInstruction = `For this request, create an art technique that uses realistic imagery to create the optical illusion that the depicted objects exist in three dimensions.`; break;
+
+        case 'Ukiyo-e': styleInstruction = `For this request, adopt the style of Japanese woodblock prints from the Edo period. Feature flowing outlines, flat areas of color, and subjects from history or daily life. Think Hokusai or Hiroshige.`; break;
+        
+        case 'Vaporwave': styleInstruction = `For this request, create a nostalgic, surrealist aesthetic inspired by 1980s and 1990s internet culture, with classical statues, glitch art, and pastel colors.`; break;
+        case 'Vector Art': styleInstruction = `For this request, create a clean, scalable image with sharp lines, flat colors, and geometric precision, as if made with vector graphics software.`; break;
+        case 'Verism': styleInstruction = `For this request, use a style of post-Romantic opera that deals with the everyday or sordid, and which is expressed through realistic, often violent, representation.`; break;
+        case 'Vintage Photo': styleInstruction = `For this request, lean towards a vintage photography style. Emulate the look of old film, daguerreotypes, or sepia-toned prints from a specific historical era.`; break;
+        case 'Vorticism': styleInstruction = `For this request, use a British art movement of the early 20th century that combined the clean lines of Cubism with the dynamism of Futurism.`; break;
+        case 'Voxel Art': styleInstruction = `For this request, create a 3D scene that looks like it's built from 3D pixels (voxels), giving it a blocky, retro 3D game aesthetic.`; break;
+        
+        case 'Wabi-sabi': styleInstruction = `For this request, adopt the Japanese aesthetic centered on the acceptance of transience and imperfection, often with a rustic, simple, and natural feel.`; break;
+        case 'Whimsical': styleInstruction = `For this request, create a playfully quaint or fanciful image, especially in an appealing and amusing way.`; break;
+        case 'Woodcut Print': styleInstruction = `For this request, create a look with stark contrasts and bold, graphic lines, as if carved from a wooden block.`; break;
+
         case 'Realism':
         default:
             styleInstruction = `For this request, focus on photorealistic concepts that look like they could be real photographs, even if the subject matter is fantastical.`;
@@ -406,6 +482,7 @@ export const generateEditPrompt = async (
     apiKey?: string | null,
 ): Promise<Prompt> => {
     const ai = getAiClient(apiKey);
+    incrementApiUsage(!!apiKey); // Track API call
     const response = await ai.models.generateContent({
         model: PROMPT_GENERATION_MODEL,
         contents: getPromptGenerationContent(gender, quality, aspectRatio, style),
@@ -454,6 +531,7 @@ export const editImageWithGemini = async (
     removeBackground?: boolean,
 ): Promise<string> => {
     const ai = getAiClient(apiKey);
+    incrementApiUsage(!!apiKey); // Track API call
     
     const instructionParts = [];
     if (removeBackground) {
