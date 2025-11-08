@@ -186,6 +186,48 @@ const ImageModal: React.FC<{
     );
 };
 
+const JsonViewer: React.FC<{ prompt: Prompt }> = ({ prompt }) => {
+    const jsonString = JSON.stringify(prompt, null, 2);
+    const lines = jsonString.split('\n');
+    const [copyStatus, setCopyStatus] = useState('Copy');
+
+    const handleCopy = useCallback(() => {
+        navigator.clipboard.writeText(jsonString).then(() => {
+            setCopyStatus('Copied!');
+            setTimeout(() => setCopyStatus('Copy'), 2000);
+        }, () => {
+            setCopyStatus('Failed!');
+            setTimeout(() => setCopyStatus('Copy'), 2000);
+        });
+    }, [jsonString]);
+
+    return (
+        <div className="w-full h-full bg-[#1e1e1e] text-white font-mono text-[13px] rounded-md overflow-hidden flex flex-col animate-fade-in">
+            <div className="flex justify-between items-center bg-gray-800/50 px-4 py-2 border-b border-gray-700">
+                <span className="text-gray-400">JSON Output</span>
+                <button 
+                    onClick={handleCopy}
+                    className="px-3 py-1 text-xs font-semibold rounded-md transition-colors bg-gray-600 hover:bg-gray-500 text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                    {copyStatus}
+                </button>
+            </div>
+            <div className="overflow-auto flex-grow">
+                <pre className="whitespace-pre h-full">
+                    <code className="block p-4">
+                        {lines.map((line, index) => (
+                            <div key={index} className="flex leading-relaxed">
+                                <span className="text-right text-gray-500 w-8 pr-4 select-none">{index + 1}</span>
+                                <span className="flex-1">{line.replace(/ /g, '\u00a0')}</span>
+                            </div>
+                        ))}
+                    </code>
+                </pre>
+            </div>
+        </div>
+    );
+};
+
 
 const PromptDetails: React.FC<{ 
     prompt: Prompt, 
@@ -200,6 +242,7 @@ const PromptDetails: React.FC<{
     isLoading: boolean,
 }> = ({ prompt, editedImages, onSaveToDrive, onSignIn, isSignedIn, isGapiReady, isSavingToDrive, isDriveConfigured, onRetryWithSamePrompt, isLoading }) => {
     const [copyButtonText, setCopyButtonText] = useState('Copy JSON');
+    const hasImages = editedImages && editedImages.length > 0;
     
     const handleCopy = () => {
         const detailsToCopy = Object.fromEntries(
@@ -259,19 +302,25 @@ const PromptDetails: React.FC<{
                             onClick={onRetryWithSamePrompt}
                             disabled={isAnyActionInProgress}
                             className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Generate a new set of images using the exact same prompt and settings."
+                            title={hasImages ? "Generate a new set of images using the exact same prompt and settings." : "Generate images for the current JSON prompt. (Disable 'JSON only' switch first)"}
                         >
-                            {isLoading ? 'Regenerating...' : 'Regenerate'}
+                            {isLoading ? 'Processing...' : (hasImages ? 'Regenerate' : 'Generate Images')}
                         </button>
-                        {editedImages && editedImages.length > 1 && (
-                            <button onClick={handleDownloadAll} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">Download All</button>
-                        )}
+                        
                         <button onClick={handleCopy} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">{copyButtonText}</button>
-                        {isGapiReady && (
-                           <button onClick={handleDriveClick} disabled={isAnyActionInProgress || !editedImages || !isDriveConfigured} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background flex items-center justify-center">
-                               {isSavingToDrive && <ButtonSpinner />}
-                               {getDriveButtonText()}
-                           </button>
+                        
+                        {hasImages && (
+                            <>
+                                {editedImages.length > 1 && (
+                                    <button onClick={handleDownloadAll} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">Download All</button>
+                                )}
+                                {isGapiReady && (
+                                   <button onClick={handleDriveClick} disabled={isAnyActionInProgress || !isDriveConfigured} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background flex items-center justify-center">
+                                       {isSavingToDrive && <ButtonSpinner />}
+                                       {getDriveButtonText()}
+                                   </button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -357,34 +406,49 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
         <img src={src} alt="Edited result" className="max-w-full max-h-full object-contain rounded-lg" />
         <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <button onClick={onClick} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Enlarge image">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
             </button>
             <a href={src} download={`fotomaydonoz-${new Date().getTime()}.png`} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Download image">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             </a>
         </div>
     </div>
 );
 
+  const hasImages = editedImages && editedImages.length > 0;
+  const isJsonOnlyResult = !isLoading && !hasImages && prompt;
+
+  const getCardTitle = () => {
+    if (isLoading) return "Generating...";
+    if (isJsonOnlyResult) return "Generated JSON Prompt";
+    if (hasImages) return "Edited Results";
+    return "Output";
+  };
+
   return (
     <div className="space-y-6">
         <div className="bg-card border border-border p-4 rounded-lg shadow-sm">
-            <h3 className="text-lg font-semibold text-center mb-4 text-card-foreground">Edited Results</h3>
+            <h3 className="text-lg font-semibold text-center mb-4 text-card-foreground">{getCardTitle()}</h3>
             <div className="relative aspect-square bg-muted/50 rounded-md flex items-center justify-center">
                 {isLoading && <LoadingSpinner />}
-                {editedImages ? (
+                
+                {!isLoading && hasImages && (
                    editedImages.length > 1 ? (
                       <div className="grid grid-cols-2 gap-2 w-full h-full p-2 animate-fade-in">
                           {editedImages.map((image, index) => <GridImage key={index} src={image} onClick={() => setModalImageIndex(index)} />)}
                       </div>
                   ) : <SingleImageView src={editedImages[0]} onClick={() => setModalImageIndex(0)} />
-                ) : (
-                    !isLoading && (
-                        <div className="text-muted-foreground text-center p-4">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-12 w-12 opacity-50"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                             <p className="mt-2 text-sm">Your masterpiece will appear here</p>
-                        </div>
-                    )
+                )}
+
+                {isJsonOnlyResult && (
+                    <JsonViewer prompt={prompt} />
+                )}
+
+                {!isLoading && !hasImages && !prompt && (
+                    <div className="text-muted-foreground text-center p-4">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-12 w-12 opacity-50"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                         <p className="mt-2 text-sm">Your masterpiece will appear here</p>
+                    </div>
                 )}
             </div>
         </div>

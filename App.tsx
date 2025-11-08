@@ -110,9 +110,9 @@ const ERROR_MAP: { keywords: string[], message: React.ReactNode | ((isUserKeyAct
 ];
 
 type FailedAction = 
-    | { type: 'random'; payload: { gender: Gender; style: ArtisticStyle; numImages: 0 | 1 | 4 } }
-    | { type: 'custom'; payload: { prompt: Prompt; numImages: 0 | 1 | 4 } }
-    | { type: 'history'; payload: { promptToUse: Prompt } }
+    | { type: 'random'; payload: { gender: Gender; style: ArtisticStyle; numImages: number } }
+    | { type: 'custom'; payload: { prompt: Prompt; numImages: number } }
+    | { type: 'history'; payload: { promptToUse: Prompt; numImages: number } }
     | { type: 'retrySame'; payload: {} };
 
 
@@ -138,7 +138,7 @@ const App: React.FC = () => {
 
   // Model Selection State
   const [textModel, setTextModel] = useState<TextModel>('gemini-2.5-pro');
-  const [imageModel, setImageModel] = useState<ImageModel>('gemini-2.5-flash-image');
+  const imageModel: ImageModel = 'gemini-2.5-flash-image';
 
   // User API Key State
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
@@ -147,9 +147,8 @@ const App: React.FC = () => {
 
 
   // State lifted from PromptCustomizer
-  const [quality, setQuality] = useState('standard');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [numImages, setNumImages] = useState<0 | 1 | 4>(4);
+  const [numImages, setNumImages] = useState<1 | 2 | 3 | 4>(4);
+  const [isJsonOnly, setIsJsonOnly] = useState(false);
   const [removeBackground, setRemoveBackground] = useState(false);
 
 
@@ -266,7 +265,7 @@ const App: React.FC = () => {
     setError(finalError);
   };
 
-  const performImageEdit = useCallback(async (prompt: Prompt, quality: string, aspectRatio: string, numImages: 0 | 1 | 4, removeBackground: boolean, imageModel: ImageModel) => {
+  const performImageEdit = useCallback(async (prompt: Prompt, quality: string, aspectRatio: string, numImages: number, removeBackground: boolean, imageModel: ImageModel) => {
     setCurrentPrompt(prompt);
     
     let editedImageResults: string[] | null = null;
@@ -306,7 +305,7 @@ const App: React.FC = () => {
 
   }, [originalImage, addLog, userApiKey]);
 
-  const handleGenerateRandom = useCallback(async (gender: Gender, style: ArtisticStyle, numImages: 0 | 1 | 4) => {
+  const handleGenerateRandom = useCallback(async (gender: Gender, style: ArtisticStyle, numImages: number) => {
       if (!originalImage && numImages > 0) {
           setError("Please upload an image first.");
           return;
@@ -316,6 +315,9 @@ const App: React.FC = () => {
       setLastFailedAction(null);
       setCurrentPrompt(null);
       setEditedImages(null);
+
+      const quality = 'standard';
+      const aspectRatio = '1:1';
 
       try {
           addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender, quality, aspectRatio, style, textModel } });
@@ -328,9 +330,9 @@ const App: React.FC = () => {
       } finally {
           setIsGeneratingNewPrompt(false);
       }
-  }, [originalImage, addLog, quality, aspectRatio, performImageEdit, userApiKey, removeBackground, textModel, imageModel]);
+  }, [originalImage, addLog, performImageEdit, userApiKey, removeBackground, textModel, imageModel]);
   
-  const handleGenerateCustom = useCallback(async (prompt: Prompt, numImages: 0 | 1 | 4) => {
+  const handleGenerateCustom = useCallback(async (prompt: Prompt, numImages: number) => {
       if (!originalImage && numImages > 0) {
           setError("Please upload an image first.");
           return;
@@ -341,6 +343,9 @@ const App: React.FC = () => {
       setLastFailedAction(null);
       setEditedImages(null);
 
+      const quality = 'standard';
+      const aspectRatio = '1:1';
+
       try {
           await performImageEdit(prompt, quality, aspectRatio, numImages, removeBackground, imageModel);
       } catch(e) {
@@ -349,10 +354,12 @@ const App: React.FC = () => {
       } finally {
           setIsLoading(false);
       }
-  }, [originalImage, quality, aspectRatio, performImageEdit, removeBackground, userApiKey, imageModel]);
+  }, [originalImage, performImageEdit, removeBackground, userApiKey, imageModel]);
 
-  const handleUseHistoryPrompt = useCallback(async (promptToUse: Prompt) => {
-      if (!originalImage && numImages > 0) {
+  const handleUseHistoryPrompt = useCallback(async (promptToUse: Prompt, numImagesOverride?: number) => {
+      const imagesToGenerate = numImagesOverride ?? (isJsonOnly ? 0 : numImages);
+      
+      if (!originalImage && imagesToGenerate > 0) {
           setError("Please upload an image first to use a historical prompt.");
           window.scrollTo(0, 0); 
           return;
@@ -363,15 +370,18 @@ const App: React.FC = () => {
       setLastFailedAction(null);
       setEditedImages(null);
 
+      const quality = 'standard';
+      const aspectRatio = '1:1';
+
       try {
-          await performImageEdit(promptToUse, quality, aspectRatio, numImages, removeBackground, imageModel);
+          await performImageEdit(promptToUse, quality, aspectRatio, imagesToGenerate, removeBackground, imageModel);
       } catch(e) {
           handleGenericError(e, 'handleUseHistoryPrompt');
-          setLastFailedAction({ type: 'history', payload: { promptToUse } });
+          setLastFailedAction({ type: 'history', payload: { promptToUse, numImages: imagesToGenerate } });
       } finally {
           setIsLoading(false);
       }
-  }, [originalImage, quality, aspectRatio, numImages, performImageEdit, removeBackground, userApiKey, imageModel]);
+  }, [originalImage, numImages, isJsonOnly, performImageEdit, removeBackground, userApiKey, imageModel]);
 
   const handleRetryWithSamePrompt = useCallback(async () => {
     if (!currentPrompt) {
@@ -383,16 +393,20 @@ const App: React.FC = () => {
     setError(null);
     setLastFailedAction(null);
     setEditedImages(null);
+    
+    const imagesToGenerate = isJsonOnly ? 0 : numImages;
+    const quality = 'standard';
+    const aspectRatio = '1:1';
 
     try {
-        await performImageEdit(currentPrompt, quality, aspectRatio, numImages, removeBackground, imageModel);
+        await performImageEdit(currentPrompt, quality, aspectRatio, imagesToGenerate, removeBackground, imageModel);
     } catch(e) {
         handleGenericError(e, 'handleRetryWithSamePrompt');
         setLastFailedAction({ type: 'retrySame', payload: {} });
     } finally {
         setIsLoading(false);
     }
-  }, [currentPrompt, quality, aspectRatio, numImages, performImageEdit, removeBackground, userApiKey, imageModel]);
+  }, [currentPrompt, numImages, isJsonOnly, performImageEdit, removeBackground, userApiKey, imageModel]);
 
 
   const handleRetry = () => {
@@ -409,7 +423,7 @@ const App: React.FC = () => {
                   handleGenerateCustom(payload.prompt, payload.numImages);
                   break;
               case 'history':
-                  handleUseHistoryPrompt(payload.promptToUse);
+                  handleUseHistoryPrompt(payload.promptToUse, payload.numImages);
                   break;
               case 'retrySame':
                   handleRetryWithSamePrompt();
@@ -492,18 +506,14 @@ const App: React.FC = () => {
                   onGenerateCustom={handleGenerateCustom}
                   onImageUpload={handleImageUpload}
                   isDisabled={isLoading || isGeneratingNewPrompt}
-                  quality={quality}
-                  setQuality={setQuality}
-                  aspectRatio={aspectRatio}
-                  setAspectRatio={setAspectRatio}
                   numImages={numImages}
                   setNumImages={setNumImages}
+                  isJsonOnly={isJsonOnly}
+                  setIsJsonOnly={setIsJsonOnly}
                   removeBackground={removeBackground}
                   setRemoveBackground={setRemoveBackground}
                   textModel={textModel}
                   setTextModel={setTextModel}
-                  imageModel={imageModel}
-                  setImageModel={setImageModel}
                 />
               </div>
             </aside>

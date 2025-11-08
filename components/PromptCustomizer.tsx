@@ -1,26 +1,22 @@
 import React, { useState } from 'react';
-import type { Prompt, PromptDetails, Gender, ImageData, ArtisticStyle, TextModel, ImageModel } from '../types';
+import type { Prompt, PromptDetails, Gender, ImageData, ArtisticStyle, TextModel } from '../types';
 import { ImageUploader } from './ImageUploader';
 import { GenderSelector } from './GenderSelector';
 import { CustomPromptModal } from './CustomPromptModal';
 
 interface PromptCustomizerProps {
-  onGenerateRandom: (gender: Gender, style: ArtisticStyle, numImages: 0 | 1 | 4) => void;
-  onGenerateCustom: (prompt: Prompt, numImages: 0 | 1 | 4) => void;
+  onGenerateRandom: (gender: Gender, style: ArtisticStyle, numImages: number) => void;
+  onGenerateCustom: (prompt: Prompt, numImages: number) => void;
   onImageUpload: (imageData: ImageData | null) => void;
   isDisabled: boolean;
-  quality: string;
-  setQuality: (quality: string) => void;
-  aspectRatio: string;
-  setAspectRatio: (aspectRatio: string) => void;
-  numImages: 0 | 1 | 4;
-  setNumImages: (num: 0 | 1 | 4) => void;
+  numImages: 1 | 2 | 3 | 4;
+  setNumImages: (num: 1 | 2 | 3 | 4) => void;
+  isJsonOnly: boolean;
+  setIsJsonOnly: (isJsonOnly: boolean) => void;
   removeBackground: boolean;
   setRemoveBackground: (remove: boolean) => void;
   textModel: TextModel;
   setTextModel: (model: TextModel) => void;
-  imageModel: ImageModel;
-  setImageModel: (model: ImageModel) => void;
 }
 
 const initialDetails: PromptDetails = {
@@ -34,27 +30,27 @@ const SettingButtonGroup: React.FC<{
     options: { value: string, label: string }[];
     selectedValue: string;
     onSelect: (value: string) => void;
-}> = ({ label, options, selectedValue, onSelect }) => (
+    disabled?: boolean;
+}> = ({ label, options, selectedValue, onSelect, disabled = false }) => (
     <div className="space-y-2">
-        <label className="block text-sm font-medium text-card-foreground">{label}</label>
-        <div className="grid grid-cols-3 gap-2">
-            {options.map((option, index) => (
+        <label className={`block text-sm font-medium text-card-foreground ${disabled ? 'opacity-50' : ''}`}>{label}</label>
+        <div className="grid grid-cols-4 gap-2">
+            {options.map((option) => (
                 <button
                     key={option.value}
                     type="button"
                     onClick={() => onSelect(option.value)}
+                    disabled={disabled}
                     className={`h-10 px-3 text-sm font-semibold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${
                         selectedValue === option.value
                             ? 'bg-primary text-primary-foreground'
                             : 'bg-secondary text-secondary-foreground hover:bg-muted'
-                    } ${options.length === 2 ? 'col-span-3 grid grid-cols-2' : ''} ${options.length === 2 ? (index === 0 ? 'col-start-1' : 'col-start-2') : ''}`}
-                    style={options.length === 2 ? { gridColumn: 'span 1' } : {}}
+                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     {option.label}
                 </button>
             ))}
         </div>
-         {options.length === 2 && <div className="col-span-1"></div>}
     </div>
 );
 
@@ -249,9 +245,10 @@ const styleOptions = [...allStyleOptions].sort((a, b) => {
 
 
 export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({ 
-    onGenerateRandom, onGenerateCustom, onImageUpload, isDisabled, quality, setQuality,
-    aspectRatio, setAspectRatio, numImages, setNumImages, removeBackground, setRemoveBackground,
-    textModel, setTextModel, imageModel, setImageModel
+    onGenerateRandom, onGenerateCustom, onImageUpload, isDisabled,
+    numImages, setNumImages, isJsonOnly, setIsJsonOnly,
+    removeBackground, setRemoveBackground,
+    textModel, setTextModel
 }) => {
   const [gender, setGender] = useState<Gender>('unspecified');
   const [style, setStyle] = useState<ArtisticStyle>('Realism');
@@ -277,8 +274,10 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
       } catch (error) {
         console.error("Failed to save custom prompt details to localStorage:", error);
       }
-      onGenerateCustom(prompt, numImages);
+      onGenerateCustom(prompt, isJsonOnly ? 0 : numImages);
   };
+  
+  const imagesToGenerate = isJsonOnly ? 0 : numImages;
 
   return (
     <div className="space-y-6">
@@ -318,21 +317,38 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                     <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 </select>
             </div>
-            <div>
-                <label htmlFor="image-model-select" className="block text-sm font-medium text-card-foreground mb-2">Image Editing Model</label>
-                <select
-                    id="image-model-select"
-                    value={imageModel}
-                    onChange={(e) => setImageModel(e.target.value as ImageModel)}
-                    className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2 disabled:opacity-75 disabled:cursor-not-allowed"
-                    disabled
-                >
-                    <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
-                </select>
+            <SettingButtonGroup 
+                label="Number of Images" 
+                options={[ { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' }, { value: '4', label: '4' } ]} 
+                selectedValue={String(numImages)} 
+                onSelect={(value) => setNumImages(Number(value) as 1 | 2 | 3 | 4)}
+                disabled={isJsonOnly || isDisabled}
+            />
+            <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="json-only" className="text-sm font-medium text-card-foreground">
+                        Just JSON prompt, no image generation
+                    </label>
+                    <button
+                        id="json-only"
+                        type="button"
+                        role="switch"
+                        aria-checked={isJsonOnly}
+                        onClick={() => setIsJsonOnly(!isJsonOnly)}
+                        disabled={isDisabled}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${isDisabled ? 'opacity-50' : ''} ${
+                            isJsonOnly ? 'bg-primary' : 'bg-input'
+                        }`}
+                    >
+                        <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                isJsonOnly ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                        />
+                    </button>
+                </div>
             </div>
-             <SettingButtonGroup label="Quality" options={[ { value: 'standard', label: 'Standard' }, { value: 'high', label: 'High' }]} selectedValue={quality} onSelect={setQuality} />
-             <SettingButtonGroup label="Aspect Ratio" options={[ { value: '1:1', label: '1:1' }, { value: '4:3', label: '4:3' }, { value: '16:9', label: '16:9' }, { value: '3:4', label: '3:4' }, { value: '9:16', label: '9:16' } ]} selectedValue={aspectRatio} onSelect={setAspectRatio} />
-             <SettingButtonGroup label="Number of Images" options={[ { value: '0', label: 'JSON' }, { value: '1', label: '1' }, { value: '4', label: '4' } ]} selectedValue={String(numImages)} onSelect={(value) => setNumImages(Number(value) as 0 | 1 | 4)} />
              <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
                     <label htmlFor="remove-background" className="text-sm font-medium text-card-foreground">
@@ -344,7 +360,8 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                         role="switch"
                         aria-checked={removeBackground}
                         onClick={() => setRemoveBackground(!removeBackground)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${
+                        disabled={isDisabled}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${isDisabled ? 'opacity-50' : ''} ${
                             removeBackground ? 'bg-primary' : 'bg-input'
                         }`}
                     >
@@ -366,7 +383,7 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
              <button type="button" onClick={() => setIsModalOpen(true)} disabled={isDisabled} className="w-full h-11 bg-secondary text-secondary-foreground hover:bg-muted disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
               Create Custom Prompt
             </button>
-            <button type="button" onClick={() => onGenerateRandom(gender, style, numImages)} disabled={isDisabled} className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+            <button type="button" onClick={() => onGenerateRandom(gender, style, imagesToGenerate)} disabled={isDisabled} className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
               {isDisabled ? 'Generating...' : 'Randomize & Create'}
             </button>
          </CardFooter>
