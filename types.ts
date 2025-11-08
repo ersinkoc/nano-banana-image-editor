@@ -60,3 +60,6 @@ export interface DebugLog {
   timestamp: string;
   data: unknown;
 }
+
+export type TextModel = 'gemini-2.5-pro' | 'gemini-2.5-flash';
+export type ImageModel = 'gemini-2.5-flash-image';

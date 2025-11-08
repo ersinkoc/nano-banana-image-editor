@@ -1,8 +1,6 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import type { Prompt, ArtisticStyle } from '../types';
+import type { Prompt, ArtisticStyle, TextModel, ImageModel } from '../types';
 
-const PROMPT_GENERATION_MODEL = 'gemini-2.5-flash';
-const IMAGE_EDIT_MODEL = 'gemini-2.5-flash-image';
 const USAGE_STORAGE_KEY = 'apiUsageStats';
 
 // --- API Usage Tracking ---
@@ -476,15 +474,16 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
 
 export const generateEditPrompt = async (
     gender: string,
-    quality: string = 'standard',
-    aspectRatio: string = '1:1',
-    style: ArtisticStyle = 'Realism',
+    quality: string,
+    aspectRatio: string,
+    style: ArtisticStyle,
+    textModel: TextModel,
     apiKey?: string | null,
 ): Promise<Prompt> => {
     const ai = getAiClient(apiKey);
     incrementApiUsage(!!apiKey); // Track API call
     const response = await ai.models.generateContent({
-        model: PROMPT_GENERATION_MODEL,
+        model: textModel,
         contents: getPromptGenerationContent(gender, quality, aspectRatio, style),
         config: {
             systemInstruction: "You are a creative director specializing in generating imaginative and cinematic photo edit concepts across all artistic styles. You must output your response as a valid JSON object.",
@@ -525,8 +524,9 @@ export const editImageWithGemini = async (
     base64ImageData: string,
     mimeType: string,
     prompt: string,
-    quality: string = 'standard',
-    aspectRatio: string = '1:1',
+    quality: string,
+    aspectRatio: string,
+    imageModel: ImageModel,
     apiKey?: string | null,
     removeBackground?: boolean,
 ): Promise<string> => {
@@ -550,7 +550,7 @@ export const editImageWithGemini = async (
     }
 
     const response = await ai.models.generateContent({
-        model: IMAGE_EDIT_MODEL,
+        model: imageModel,
         contents: {
             parts: [
                 {

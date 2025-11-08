@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { Prompt, PromptDetails, Gender, ImageData, ArtisticStyle } from '../types';
+import type { Prompt, PromptDetails, Gender, ImageData, ArtisticStyle, TextModel, ImageModel } from '../types';
 import { ImageUploader } from './ImageUploader';
 import { GenderSelector } from './GenderSelector';
 import { CustomPromptModal } from './CustomPromptModal';
@@ -17,6 +17,10 @@ interface PromptCustomizerProps {
   setNumImages: (num: 0 | 1 | 4) => void;
   removeBackground: boolean;
   setRemoveBackground: (remove: boolean) => void;
+  textModel: TextModel;
+  setTextModel: (model: TextModel) => void;
+  imageModel: ImageModel;
+  setImageModel: (model: ImageModel) => void;
 }
 
 const initialDetails: PromptDetails = {
@@ -245,7 +249,8 @@ const styleOptions = [...allStyleOptions].sort((a, b) => {
 
 export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({ 
     onGenerateRandom, onGenerateCustom, onImageUpload, isDisabled, quality, setQuality,
-    aspectRatio, setAspectRatio, numImages, setNumImages, removeBackground, setRemoveBackground
+    aspectRatio, setAspectRatio, numImages, setNumImages, removeBackground, setRemoveBackground,
+    textModel, setTextModel, imageModel, setImageModel
 }) => {
   const [gender, setGender] = useState<Gender>('unspecified');
   const [style, setStyle] = useState<ArtisticStyle>('Realism');
@@ -294,8 +299,34 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                     value={style}
                     onChange={(e) => setStyle(e.target.value as ArtisticStyle)}
                     className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+                    disabled={isDisabled}
                 >
                     {styleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+            </div>
+            <div>
+                <label htmlFor="text-model-select" className="block text-sm font-medium text-card-foreground mb-2">Prompt Generation Model</label>
+                <select
+                    id="text-model-select"
+                    value={textModel}
+                    onChange={(e) => setTextModel(e.target.value as TextModel)}
+                    className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+                    disabled={isDisabled}
+                >
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                </select>
+            </div>
+            <div>
+                <label htmlFor="image-model-select" className="block text-sm font-medium text-card-foreground mb-2">Image Editing Model</label>
+                <select
+                    id="image-model-select"
+                    value={imageModel}
+                    onChange={(e) => setImageModel(e.target.value as ImageModel)}
+                    className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2 disabled:opacity-75 disabled:cursor-not-allowed"
+                    disabled
+                >
+                    <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
                 </select>
             </div>
              <SettingButtonGroup label="Quality" options={[ { value: 'standard', label: 'Standard' }, { value: 'high', label: 'High' }]} selectedValue={quality} onSelect={setQuality} />

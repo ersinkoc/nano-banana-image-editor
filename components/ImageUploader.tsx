@@ -8,9 +8,17 @@ interface ImageUploaderProps {
 const MAX_FILE_SIZE_MB = 4;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-const fileToData = (file: File): Promise<ImageData> => {
+const fileToData = (file: File, onProgress: (progress: number) => void): Promise<ImageData> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
+
+        reader.onprogress = (event: ProgressEvent<FileReader>) => {
+            if (event.lengthComputable) {
+                const progress = (event.loaded / event.total) * 100;
+                onProgress(progress);
+            }
+        };
+        
         reader.onload = (event) => {
             if (event.target && typeof event.target.result === 'string') {
                 const dataUrl = event.target.result;
@@ -28,6 +36,7 @@ const fileToData = (file: File): Promise<ImageData> => {
 
 export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
   const [preview, setPreview] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,8 +52,9 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
         return;
       }
 
+      setProgress(0);
       try {
-        const imageData = await fileToData(file);
+        const imageData = await fileToData(file, (p) => setProgress(p));
         setPreview(imageData.dataUrl);
         onImageUpload(imageData);
       } catch (error) {
@@ -52,19 +62,25 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
         alert("There was an error processing your image. It might be corrupted. Please try another one.");
         setPreview(null);
         onImageUpload(null);
+      } finally {
+        setProgress(null);
       }
     }
   };
 
   const handleButtonClick = () => {
-    fileInputRef.current?.click();
+    // Don't open file dialog if we are currently reading a file
+    if (progress === null) {
+      fileInputRef.current?.click();
+    }
   };
 
   return (
     <div className="space-y-4">
         <div 
-          className="relative w-full aspect-square bg-muted/50 rounded-lg flex items-center justify-center border-2 border-dashed border-border cursor-pointer hover:border-primary transition-colors group"
+          className="relative w-full aspect-square bg-muted/50 rounded-lg flex items-center justify-center border-2 border-dashed border-border hover:border-primary transition-colors group overflow-hidden"
           onClick={handleButtonClick}
+          style={{ cursor: progress !== null ? 'default' : 'pointer' }}
         >
         {preview ? (
             <img src={preview} alt="Preview" className="object-contain h-full w-full rounded-md" />
@@ -74,6 +90,19 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
                 <p className="mt-2 text-sm font-semibold">Click to upload photo</p>
                 <p className="text-xs">PNG, JPG or WEBP (max {MAX_FILE_SIZE_MB}MB)</p>
             </div>
+        )}
+        {progress !== null && (
+          <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center p-8 animate-fade-in">
+              <div className="w-full">
+                  <p className="text-center text-sm font-semibold text-foreground mb-2">Reading file...</p>
+                  <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                      <div 
+                          className="bg-primary h-2.5 rounded-full transition-all duration-150 ease-linear" 
+                          style={{ width: `${progress}%` }}
+                      ></div>
+                  </div>
+              </div>
+          </div>
         )}
         </div>
         <input
