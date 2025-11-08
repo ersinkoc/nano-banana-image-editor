@@ -521,7 +521,7 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
     };
     promptParts.push('The response MUST be a single, valid JSON object following this exact structure:');
     promptParts.push(JSON.stringify(jsonStructure, null, 2));
-    promptParts.push("Also, provide a 'negative_prompt' object. This should contain two arrays: 'exclude_visuals' for specific unwanted visual elements, and 'exclude_styles' for artistic styles to avoid. This is crucial for refining the final image.");
+    promptParts.push("A CRITICAL part of the response is the 'negative_prompt' object. It MUST be generated for EVERY concept. The negative prompts should be tailored specifically to the generated concept. For example, for a 'noir' film concept, you might exclude 'bright, happy colors'. For a 'charcoal sketch', you might exclude 'photorealistic textures'. Be thoughtful and specific. This is not optional and must be included.");
 
     // Part 3: Examples
     promptParts.push('\nHere are some examples to show the desired output format and quality. Do NOT copy their themes. Be original and explore different styles.');
@@ -531,7 +531,7 @@ const getPromptGenerationContent = (gender: string, quality: string, aspectRatio
     });
 
     // Part 4: Final instruction
-    promptParts.push(`\nCRITICAL INSTRUCTION: Now, generate a brand new concept. It MUST be completely different in theme, style, artistic medium, and subject matter from all the examples provided. Your goal is maximum randomness and creativity. It could be a simple scene, a cartoon, a painting, a sketch, or a cinematic shot. Be unpredictable. The only rule is to preserve the subject's facial features. Generate the concept as a valid JSON object.`);
+    promptParts.push(`\nCRITICAL INSTRUCTION: Now, generate a brand new concept. It MUST be completely different in theme, style, artistic medium, and subject matter from all the examples provided. Your goal is maximum randomness and creativity. Remember to generate specific, context-aware negative prompts for your new concept. It could be a simple scene, a cartoon, a painting, a sketch, or a cinematic shot. Be unpredictable. The only rule is to preserve the subject's facial features. Generate the concept as a valid JSON object.`);
 
     return promptParts.join('\n');
 };
