@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Prompt } from '../types';
+import type { Prompt, SubjectSpecificDetails } from '../types';
 
 interface PreviewProps {
   editedImages: string[] | null;
@@ -228,8 +228,18 @@ const JsonViewer: React.FC<{ prompt: Prompt }> = ({ prompt }) => {
     );
 };
 
+const DetailItem: React.FC<{label: string; value: string | string[]}> = ({label, value}) => {
+    const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
+    if (!displayValue) return null;
+    return (
+         <div className="flex flex-col">
+            <span className="font-semibold text-muted-foreground capitalize">{label.replace(/_/g, ' ')}</span>
+            <span className="text-card-foreground">{displayValue}</span>
+        </div>
+    );
+};
 
-const PromptDetails: React.FC<{ 
+const PromptDetailsDisplay: React.FC<{ 
     prompt: Prompt, 
     editedImages: string[] | null,
     onSaveToDrive: () => void,
@@ -245,12 +255,7 @@ const PromptDetails: React.FC<{
     const hasImages = editedImages && editedImages.length > 0;
     
     const handleCopy = () => {
-        const detailsToCopy = Object.fromEntries(
-            Object.entries(prompt.details).filter(([, value]) => typeof value === 'string' && value.trim() !== '')
-        );
-        const promptToCopy = { prompt: prompt.prompt, details: detailsToCopy };
-        
-        navigator.clipboard.writeText(JSON.stringify(promptToCopy, null, 2))
+        navigator.clipboard.writeText(JSON.stringify(prompt, null, 2))
             .then(() => {
                 setCopyButtonText('Copied!');
                 setTimeout(() => setCopyButtonText('Copy JSON'), 2000);
@@ -291,6 +296,8 @@ const PromptDetails: React.FC<{
     );
 
     const isAnyActionInProgress = isLoading || isSavingToDrive;
+    
+    const { details } = prompt;
 
     return (
         <div className="bg-card border border-border rounded-lg animate-fade-in">
@@ -327,25 +334,39 @@ const PromptDetails: React.FC<{
                 <p className="italic text-muted-foreground mt-4 text-sm">"{prompt.prompt}"</p>
             </div>
             
-            <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
-                {Object.entries(prompt.details).map(([key, value]) => {
-                    if (key === 'negative_prompt' || !value) return null;
-                    return (
-                        <div key={key} className="flex flex-col">
-                            <span className="font-semibold text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
-                            <span className="text-card-foreground">{String(value)}</span>
+            <div className="p-4 sm:p-6 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                    {Object.entries(details).map(([key, value]) => {
+                        if (['subject1', 'subject2', 'negative_prompt'].includes(key)) return null;
+                        return <DetailItem key={key} label={key} value={value as string | string[]} />
+                    })}
+                </div>
+
+                {details.subject1 && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                        <h4 className="font-bold text-md text-card-foreground mb-2">Person 1 Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                            {Object.entries(details.subject1).map(([key, value]) => <DetailItem key={key} label={key} value={value} />)}
                         </div>
-                    )
-                })}
+                    </div>
+                )}
+                {details.subject2 && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                        <h4 className="font-bold text-md text-card-foreground mb-2">Person 2 Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                            {Object.entries(details.subject2).map(([key, value]) => <DetailItem key={key} label={key} value={value} />)}
+                        </div>
+                    </div>
+                )}
             </div>
-            
-            {prompt.details.negative_prompt && (prompt.details.negative_prompt.exclude_visuals.length > 0 || prompt.details.negative_prompt.exclude_styles.length > 0) && (
+
+            {details.negative_prompt && (details.negative_prompt.exclude_visuals.length > 0 || details.negative_prompt.exclude_styles.length > 0) && (
                 <div className="p-4 sm:p-6 border-t border-border space-y-4">
-                    {prompt.details.negative_prompt.exclude_visuals.length > 0 && (
+                    {details.negative_prompt.exclude_visuals.length > 0 && (
                         <div>
                             <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Visuals (Negative Prompt)</h4>
                             <div className="flex flex-wrap gap-2">
-                                {prompt.details.negative_prompt.exclude_visuals.map((tag, index) => (
+                                {details.negative_prompt.exclude_visuals.map((tag, index) => (
                                     <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
                                         {tag}
                                     </span>
@@ -353,11 +374,11 @@ const PromptDetails: React.FC<{
                             </div>
                         </div>
                     )}
-                    {prompt.details.negative_prompt.exclude_styles.length > 0 && (
+                    {details.negative_prompt.exclude_styles.length > 0 && (
                         <div>
                             <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Styles (Negative Prompt)</h4>
                             <div className="flex flex-wrap gap-2">
-                                {prompt.details.negative_prompt.exclude_styles.map((tag, index) => (
+                                {details.negative_prompt.exclude_styles.map((tag, index) => (
                                     <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
                                         {tag}
                                     </span>
@@ -406,10 +427,10 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
         <img src={src} alt="Edited result" className="max-w-full max-h-full object-contain rounded-lg" />
         <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <button onClick={onClick} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Enlarge image">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
             </button>
             <a href={src} download={`fotomaydonoz-${new Date().getTime()}.png`} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Download image">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             </a>
         </div>
     </div>
@@ -453,7 +474,7 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
             </div>
         </div>
         
-        {prompt && <PromptDetails 
+        {prompt && <PromptDetailsDisplay 
             prompt={prompt} 
             editedImages={editedImages} 
             onRetryWithSamePrompt={onRetryWithSamePrompt} 

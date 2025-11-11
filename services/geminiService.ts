@@ -1,5 +1,6 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
-import type { Prompt, ArtisticStyle, TextModel, ImageModel } from '../types';
+// FIX: Import GenerateContentResponse to properly type the return value from the Gemini API.
+import { GoogleGenAI, Modality, Type, GenerateContentResponse } from "@google/genai";
+import type { Prompt, ArtisticStyle, TextModel, ImageModel, Gender, SubjectSpecificDetails } from '../types';
 
 const USAGE_STORAGE_KEY = 'apiUsageStats';
 
@@ -46,6 +47,43 @@ export const resetApiUsage = (): ApiUsage => {
     return defaultUsage;
 };
 
+// --- Retry Logic for Transient Errors ---
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 1000;
+
+const isTransientError = (e: unknown): boolean => {
+    if (e instanceof Error) {
+        const errorMessage = e.message.toLowerCase();
+        // Check for common transient error indicators
+        return errorMessage.includes('503') || 
+               errorMessage.includes('unavailable') ||
+               errorMessage.includes('overloaded') ||
+               errorMessage.includes('internal error') ||
+               errorMessage.includes('network error');
+    }
+    return false;
+};
+
+const withRetry = async <T>(apiCall: () => Promise<T>): Promise<T> => {
+    let lastError: unknown = new Error('API call failed after multiple retries.');
+    for (let i = 0; i < MAX_RETRIES; i++) {
+        try {
+            return await apiCall();
+        } catch (e) {
+            lastError = e;
+            if (isTransientError(e) && i < MAX_RETRIES - 1) { // Only wait if it's not the last attempt
+                const backoffTime = INITIAL_BACKOFF_MS * Math.pow(2, i) + Math.random() * 1000; // Add jitter
+                console.warn(`Transient error detected. Retrying in ${Math.round(backoffTime)}ms... (Attempt ${i + 1}/${MAX_RETRIES})`, e);
+                await new Promise(resolve => setTimeout(resolve, backoffTime));
+            } else {
+                // Not a transient error, or last attempt failed, so re-throw
+                throw e;
+            }
+        }
+    }
+    throw lastError;
+};
+
 
 // --- Gemini Client Initialization ---
 
@@ -57,28 +95,36 @@ const getAiClient = (apiKey?: string | null): GoogleGenAI => {
     return new GoogleGenAI({ apiKey: finalApiKey });
 };
 
+const subjectDetailsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        costume: { type: Type.STRING, description: "Description of the subject's clothing and accessories." },
+        subject_expression: { type: Type.STRING, description: "A specific facial expression for the subject." },
+        subject_action: { type: Type.STRING, description: "A specific, subtle action the subject is performing." },
+    },
+    required: ["costume", "subject_expression", "subject_action"],
+};
 
 // Fix: Added a responseSchema to enforce a JSON object structure for the response,
 // improving reliability based on Gemini API best practices.
 const promptSchema = {
     type: Type.OBJECT,
     properties: {
-        prompt: { type: Type.STRING },
+        prompt: { type: Type.STRING, description: "A main instruction string summarizing the concept for the image generation model." },
         details: {
             type: Type.OBJECT,
             properties: {
-                year: { type: Type.STRING },
-                genre: { type: Type.STRING },
-                location: { type: Type.STRING },
-                lighting: { type: Type.STRING },
-                camera_angle: { type: Type.STRING },
-                emotion: { type: Type.STRING },
-                costume: { type: Type.STRING },
-                color_palette: { type: Type.STRING },
-                atmosphere: { type: Type.STRING },
-                subject_expression: { type: Type.STRING },
-                subject_action: { type: Type.STRING },
-                environmental_elements: { type: Type.STRING },
+                year: { type: Type.STRING, description: "A specific year or era (e.g., 1985, Cyberpunk Future, Ancient Rome)." },
+                genre: { type: Type.STRING, description: "A specific genre, style, or artistic medium." },
+                location: { type: Type.STRING, description: "A vivid description of the setting." },
+                lighting: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A description of the lighting, can be multiple values." },
+                camera_angle: { type: Type.STRING, description: "A specific camera angle." },
+                emotion: { type: Type.ARRAY, items: { type: Type.STRING }, description: "The dominant emotion(s) of the scene." },
+                color_palette: { type: Type.ARRAY, items: { type: Type.STRING }, description: "The key color(s) of the scene." },
+                atmosphere: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A rich, evocative description of the overall mood and atmosphere." },
+                environmental_elements: { type: Type.STRING, description: "Key dynamic or static elements in the environment." },
+                subject1: subjectDetailsSchema,
+                subject2: subjectDetailsSchema, // Optional in the type, but we can require it in the prompt
                 negative_prompt: {
                     type: Type.OBJECT,
                     properties: {
@@ -94,472 +140,208 @@ const promptSchema = {
                     required: ['exclude_visuals', 'exclude_styles']
                 }
             },
-            required: ["year", "genre", "location", "lighting", "camera_angle", "emotion", "costume", "color_palette", "atmosphere", "subject_expression", "subject_action", "environmental_elements"],
+            required: ["year", "genre", "location", "lighting", "camera_angle", "emotion", "color_palette", "atmosphere", "environmental_elements", "subject1"],
         },
     },
     required: ["prompt", "details"],
 };
 
+
 const promptExamples = [
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Transform him into a lone wanderer standing on the cracked highway of a post-apocalyptic desert, with remnants of a fallen metropolis shimmering in the heat haze behind him. His coat flaps in the scorching wind, dust swirling around as he grips a weathered map and stares toward the burning horizon where the last remnants of civilization glow faintly under an orange sun.",
+      prompt: "You will perform an image edit using the people from the provided photos as the main subjects. Preserve their core likeness. Transform Subject 1 (male) and Subject 2 (female) into rival cyberpunk detectives in a neon-drenched alley. Rain slicks the ground, reflecting the holographic ads of the towering skyscrapers above. He's interrogating her, leaning against a graffiti-covered wall, while she remains defiant, a cybernetic glint in her eye.",
       details: {
-        year: "2097",
-        genre: "Post-Apocalyptic Drama",
-        location: "Desert highway with crumbling city ruins in the distance",
-        lighting: "Harsh golden sunset with intense desert glare and long shadows",
-        camera_angle: "Low-angle wide shot emphasizing scale and isolation",
-        emotion: "Stoic determination mixed with quiet melancholy",
-        costume: "Tattered trench coat, dust mask, heavy boots, leather gloves",
-        color_palette: "Burnt orange, ochre, sand beige, and deep rust tones",
-        atmosphere: "Dry, desolate, cinematic — heavy with heat and memory",
-        subject_expression: "A thousand-yard stare, focused and unwavering",
-        subject_action: "Clutching a worn, folded map, bracing against the wind",
-        environmental_elements: "Heat haze shimmering off the asphalt, dust devils swirling, a vulture circling high above",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["clean clothing", "undamaged buildings", "lush greenery", "smiling subject", "bright blue sky"],
-          "exclude_styles": ["cartoon", "watercolor", "pop art", "minimalist"]
+        year: "2077",
+        genre: "Cyberpunk Noir",
+        location: "A narrow, rain-soaked alley between massive skyscrapers with glowing neon signs.",
+        lighting: ["Harsh neon blues and pinks", "High-contrast shadows"],
+        camera_angle: "Dutch angle medium shot, adding to the tension.",
+        emotion: ["Tense", "Suspicious"],
+        color_palette: ["Deep blues", "electric pink", "cyan", "black"],
+        atmosphere: ["Gritty", "Futuristic", "Oppressive"],
+        environmental_elements: "Steam rising from vents, rain hitting the pavement, flickering holographic signs.",
+        subject1: {
+          costume: "A worn, high-collar trench coat over tactical gear.",
+          subject_expression: "A cynical scowl, eyes narrowed in suspicion.",
+          subject_action: "Pressing a hand against the wall, cornering Subject 2."
+        },
+        subject2: {
+          costume: "A sleek, armored jumpsuit with glowing circuitry.",
+          subject_expression: "A defiant glare, chin held high.",
+          subject_action: "Arms crossed, looking unimpressed by the interrogation."
+        },
+        negative_prompt: {
+          exclude_visuals: ["daylight", "clean streets", "smiling", "nature"],
+          exclude_styles: ["cartoon", "watercolor", "cute"]
         }
       }
     },
     {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Place the subject in a quiet, minimalist Scandinavian-style living room during a lazy afternoon. The atmosphere is calm and peaceful. The person is sitting in a comfortable armchair, reading a book, with soft light filtering in through a large window.",
+      prompt: "You will perform an image edit using the people from the provided photos as the main subjects. Preserve their core likeness. Depict Subject 1 (male) and Subject 2 (male) as grizzled Viking explorers who have just landed on a misty, unknown shore. Their longship is visible behind them in the surf. They stand side-by-side, gazing at the towering, pine-covered mountains ahead, their expressions a mix of awe and determination.",
       details: {
-        year: "Present Day",
-        genre: "Slice of Life / Photorealism",
-        location: "A bright, airy living room with simple wooden furniture and a few plants.",
-        lighting: "Soft, diffused afternoon sunlight streaming through a window, creating long, gentle shadows.",
-        camera_angle: "Eye-level, medium shot, creating a natural and relatable perspective.",
-        emotion: "Calm contentment and peacefulness.",
-        costume: "Casual, comfortable clothing like a sweater and jeans.",
-        color_palette: "Neutral and warm tones: whites, light grays, natural wood, and green from plants.",
-        atmosphere: "Serene, quiet, and comfortable. A moment of peaceful solitude.",
-        subject_expression: "A soft, peaceful smile of complete absorption",
-        subject_action: "Holding a hardcover book, with a finger marking the page",
-        environmental_elements: "Dust motes dancing in the sunbeam, steam gently rising from a nearby mug, a plant's shadow stretching across the floor",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["clutter", "dark colors", "harsh lighting", "anxious expression", "television"],
-          "exclude_styles": ["gothic", "cyberpunk", "graffiti", "action photography"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Transform the subject into a character from a 1980s sci-fi anime film. The style should be reminiscent of classic hand-drawn cel animation, with sharp, expressive lines and a slightly grainy film texture. The character should be piloting a mech in a neon-lit city.",
-      details: {
-        year: "1988",
-        genre: "80s Sci-Fi Anime / Mecha",
-        location: "Cockpit of a giant robot, overlooking a futuristic city at night.",
-        lighting: "Strong key light from holographic dashboard displays, casting blue and pink neon reflections.",
-        camera_angle: "Medium close-up on the face, looking slightly off-camera.",
-        emotion: "Focused intensity",
-        costume: "High-tech pilot suit with a sleek helmet (optional).",
-        color_palette: "Vibrant neons (cyan, magenta) against deep blues and purples.",
-        atmosphere: "Nostalgic, analog sci-fi feel, with a sense of high-stakes action.",
-        subject_expression: "Gritted teeth and narrowed eyes, focused on the holographic display",
-        subject_action: "Hands gripping the mech's control sticks, knuckles white",
-        environmental_elements: "Raindrops streaking across the cockpit's viewport, neon signs reflecting on wet surfaces, holographic data flickering",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["photorealistic textures", "soft gradients", "daylight", "peaceful expression"],
-          "exclude_styles": ["photorealism", "3D render", "CGI", "watercolor"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Re-imagine the subject as a dramatic charcoal portrait sketch on textured paper. The focus should be on raw emotion and expressive mark-making, not perfect realism. The background should fade into abstract, smudged shadows.",
-      details: {
-        year: "Timeless",
-        genre: "Expressive Portraiture / Charcoal Sketch",
-        location: "Artist's studio (implied, not visible)",
-        lighting: "Single, strong light source from the side (chiaroscuro effect), creating deep shadows.",
-        camera_angle: "Straight-on, intimate close-up.",
-        emotion: "Pensive and introspective.",
-        costume: "Simple, dark clothing that blends into the shadows.",
-        color_palette: "Monochromatic - rich blacks, varied grays, and the white of the paper.",
-        atmosphere: "Raw, emotional, and artistic. The texture of the charcoal and paper should be almost tangible.",
-        subject_expression: "A melancholic, downward gaze, lips slightly parted",
-        subject_action: "Resting their chin on their hand, one shoulder slightly raised",
-        environmental_elements: "Visible texture of the rough paper, smudged charcoal marks creating a soft vignette, stray eraser dust",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["color", "smooth surfaces", "perfect lines", "happy expression", "detailed background"],
-          "exclude_styles": ["photorealism", "digital art", "oil painting", "vector illustration"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Cast the subject as a private detective in a 1930s Art Deco metropolis, caught in a moment of contemplation. Rain slicks the cobblestone streets, reflecting the neon signs of the city's underbelly. The subject leans against a grand, brass-adorned doorway, steam rising from a nearby sewer grate, their face half-shrouded in shadow.",
-      details: {
-        year: "1934",
-        genre: "Art Deco Noir Film",
-        location: "A rain-swept city street at night, with towering, geometric skyscrapers in the background.",
-        lighting: "High-contrast chiaroscuro, with a single key light from a streetlamp and deep, dramatic shadows.",
-        camera_angle: "Slight low-angle shot, looking up at the subject to give them an imposing presence.",
-        emotion: "Weary, contemplative, and suspicious.",
-        costume: "Classic film noir attire: a fedora pulled low and a belted trench coat with the collar turned up.",
-        color_palette: "Mostly monochromatic with selective pops of color from neon signs (e.g., deep blues, blacks, and electric reds).",
-        atmosphere: "Gritty, mysterious, and rain-soaked, with a sense of underlying danger.",
-        subject_expression: "A cynical smirk, eyes scanning the street from under the brim of a fedora",
-        subject_action: "Lighting a cigarette, cupping his hands against the wind",
-        environmental_elements: "Steam rising from a manhole cover, rain forming puddles that reflect neon signs, a distant siren",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["daylight", "bright, happy colors", "modern cars", "casual clothing"],
-          "exclude_styles": ["pop art", "impressionism", "fantasy art", "cute"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Reimagine the subject as a whimsical character in a children's storybook illustration. They are a friendly badger botanist, meticulously tending to glowing, fantastical plants in a cozy, cluttered greenhouse made of reclaimed wood and glass. The style should be soft watercolor with visible paper texture and gentle ink outlines.",
-      details: {
-        year: "Timeless Storybook",
-        genre: "Children's Book Watercolor",
-        location: "A warm, cluttered greenhouse filled with magical, glowing flora.",
-        lighting: "Soft, diffused light filtering through the glass panes, creating a gentle, warm glow.",
-        camera_angle: "Eye-level, intimate shot that feels welcoming and cozy.",
-        emotion: "Joyful concentration and gentle curiosity.",
-        costume: "A tweed waistcoat over a simple shirt, with small, round spectacles perched on their nose.",
-        color_palette: "Earthy tones of browns and greens, accented by the soft, luminous colors of the magical plants.",
-        atmosphere: "Charming, cozy, and full of whimsical wonder.",
-        subject_expression: "A look of delight and careful focus",
-        subject_action: "Gently misting a glowing mushroom with a tiny spray bottle",
-        environmental_elements: "Sunbeams filtering through dusty glass, overgrown vines snaking around pots, fireflies hovering near glowing plants",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["dark shadows", "scary elements", "sharp angles", "sad expressions"],
-          "exclude_styles": ["photorealism", "noir", "cyberpunk", "horror"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Transform the subject into a stylized, low-poly 3D character. They are an explorer standing on the edge of a vibrant, geometric alien world. The landscape is composed of colorful, faceted crystals and floating islands, rendered with flat shading and no textures. The aesthetic should feel clean, minimalist, and digital.",
-      details: {
-        year: "Conceptual Future",
-        genre: "Low-Poly 3D Art",
-        location: "The crystalline edge of a minimalist alien planet.",
-        lighting: "Simple, directional lighting that creates distinct, hard-edged shadows, emphasizing the geometric forms.",
-        camera_angle: "Dramatic wide shot to showcase the expansive, abstract landscape.",
-        emotion: "A sense of awe and discovery.",
-        costume: "A simple, angular space suit with a helmet that shows the face clearly.",
-        color_palette: "A bright, high-contrast palette, like turquoise, magenta, and orange against a dark purple sky.",
-        atmosphere: "Serene, digital, and otherworldly.",
-        subject_expression: "Wide-eyed wonder, mouth slightly agape",
-        subject_action: "Reaching a hand out towards a floating crystal",
-        environmental_elements: "Geometric islands drifting slowly, crystalline structures pulsing with soft light, a sky with two blocky moons",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["realistic textures", "organic shapes", "shadows", "dirt or grime"],
-          "exclude_styles": ["painting", "sketch", "photorealism", "vintage"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Position the subject as a brilliant inventor in a Victorian-era workshop filled with brass machinery, intricate clockwork, and glowing vacuum tubes. They are tinkering with a complex automaton, with detailed blueprints scattered across a wooden workbench. The air is thick with the smell of oil and ozone.",
-      details: {
-        year: "1888",
-        genre: "Steampunk Inventor",
-        location: "A cluttered, high-ceiling workshop with exposed pipes and gears.",
-        lighting: "Warm, atmospheric light from gas lamps and the soft glow of aetheric devices, creating long, dramatic shadows.",
-        camera_angle: "Medium shot, focused on the subject's hands-on work with their invention.",
-        emotion: "Intense focus and a spark of genius.",
-        costume: "Leather apron over a waistcoat and shirt with rolled-up sleeves, perhaps with brass goggles pushed up on their forehead.",
-        color_palette: "Rich browns, deep brass, and warm copper tones, with accents of electric blue from the machinery.",
-        atmosphere: "Intellectual, industrious, and anachronistically technological.",
-        subject_expression: "A focused frown of concentration, occasionally breaking into a grin of discovery",
-        subject_action: "Using a delicate pair of pliers to adjust a tiny gear on an automaton's hand",
-        environmental_elements: "Sparks flying from a nearby device, blueprints curling at the edges, bubbling liquids in glass beakers",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["plastic", "digital screens", "modern technology", "clean, minimalist environment"],
-          "exclude_styles": ["modernism", "minimalism", "cartoon", "flat design"]
-        }
-      }
-    },
-    {
-      prompt: "You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved. Render the image as an authentic 19th-century daguerreotype photograph. The subject should have a formal, stoic pose, looking directly at the camera. The image should have the characteristic silver-on-copper sheen, slight chemical imperfections, and a shallow depth of field. The background is a simple, plain studio backdrop.",
-      details: {
-        year: "1850s",
-        genre: "Daguerreotype Portrait",
-        location: "An early photography studio.",
-        lighting: "Simple, direct lighting from a single source, typical of the era's photographic techniques, creating subtle contrast.",
-        camera_angle: "Straight-on portrait, chest-up.",
-        emotion: "Serious, stoic, and neutral, as was common for long-exposure portraits.",
-        costume: "Formal attire from the mid-19th century, like a high-collared dress or a formal suit with a cravat.",
-        color_palette: "Monochromatic with a metallic, silvery tint. No true blacks, but rather deep, reflective grays.",
-        atmosphere: "Historic, formal, and hauntingly still. A preserved moment from the past.",
-        subject_expression: "A completely neutral, unwavering gaze, as required for long exposures",
-        subject_action: "Sitting perfectly still, hands folded in their lap",
-        environmental_elements: "Slight chemical tarnishing at the edges of the plate, a subtle reflection of the studio window in the subject's eyes",
-        // FIX: Corrected malformed object key from `negative_prompt"` to `"negative_prompt"`.
-        "negative_prompt": {
-          "exclude_visuals": ["color", "smiling", "movement blur", "modern clothing", "digital artifacts"],
-          "exclude_styles": ["modern photography", "digital painting", "action shot", "HDR"]
+        year: "982 AD",
+        genre: "Historical Realism / Viking Saga",
+        location: "A rocky, mist-covered beach with a dense pine forest and mountains in the background.",
+        lighting: ["Overcast morning light", "Soft, diffused light through the mist"],
+        camera_angle: "Low-angle wide shot, making the landscape and subjects feel epic.",
+        emotion: ["Awestruck", "Determined"],
+        color_palette: ["Muted greens", "stone gray", "deep blues", "earthy browns"],
+        atmosphere: ["Misty", "Untamed", "Epic", "Quiet"],
+        environmental_elements: "Thick fog rolling in from the sea, waves crashing on the shore, a raven perched on a nearby rock.",
+        subject1: {
+          costume: "Heavy furs, leather armor, and a horned helmet.",
+          subject_expression: "A determined, weather-beaten face, looking towards the mountains.",
+          subject_action: "Leaning on a large, carved battle axe."
+        },
+        subject2: {
+          costume: "Chainmail over a tunic, with a thick cloak.",
+          subject_expression: "A curious and awestruck look, taking in the new world.",
+          subject_action: "Holding a coiled rope over his shoulder, ready for the expedition."
+        },
+        negative_prompt: {
+          exclude_visuals: ["sunshine", "modern technology", "paved roads", "tropical plants"],
+          exclude_styles: ["anime", "pop art", "minimalist"]
         }
       }
     }
 ];
 
 
-const getPromptGenerationContent = (gender: string, quality: string, aspectRatio: string, style: ArtisticStyle): string => {
+const getPromptGenerationContent = (
+    gender1: Gender,
+    gender2: Gender | null,
+    quality: string,
+    aspectRatio: string,
+    style: ArtisticStyle,
+    subject1Details?: Partial<SubjectSpecificDetails>,
+    subject2Details?: Partial<SubjectSpecificDetails>
+): string => {
     const promptParts: string[] = [];
-
-    // Part 1: Main Task
+    
     let styleInstruction: string;
+    let genreConstraint = '';
     switch (style) {
-        case 'Abstract Expressionism': styleInstruction = `For this request, lean towards an Abstract Expressionist style. Emphasize spontaneous, non-representational creation with a focus on raw emotion and the physical act of art-making. Think Jackson Pollock.`; break;
-        case 'Afrofuturism': styleInstruction = `For this request, lean towards an Afrofuturism style. Combine science fiction, history, and fantasy to explore the African diaspora experience and imagine a technologically advanced future.`; break;
-        case 'Airbrush': styleInstruction = `For this request, emulate the smooth gradients and soft, blended look of airbrush art, popular in 1980s commercial illustration.`; break;
-        case 'Algorithmic Art': styleInstruction = `For this request, generate an image that appears to be created by an autonomous system or algorithm, often featuring complex geometric patterns and fractals.`; break;
-        case 'Anaglyph 3D': styleInstruction = `For this request, create an image with a stereoscopic 3D effect, using red and cyan color channels to create an illusion of depth when viewed with 3D glasses.`; break;
-        case 'Anamorphic': styleInstruction = `For this request, create a distorted image that appears normal only when viewed from a specific angle or with a special device.`; break;
-        case 'Ancient Egyptian Art': styleInstruction = `For this request, emulate the stylized and symbolic art of ancient Egypt, featuring composite views, hieroglyphs, and a formal, rigid structure.`; break;
-        case 'Artistic': styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`; break;
-        case 'ASCII Art': styleInstruction = `For this request, create an image that is formed from the characters of the ASCII standard, a text-based visual art.`; break;
-        case 'Assemblage': styleInstruction = `For this request, create an image that looks like a 3D collage, constructed from found objects and non-art materials.`; break;
-        case 'Aztec Art': styleInstruction = `For this request, emulate the art of the Aztec Empire, featuring strong geometric patterns, animal motifs, and religious symbolism.`; break;
-        case 'Art Deco': styleInstruction = `For this request, lean towards an Art Deco style. Use sleek, geometric shapes, elegant lines, and luxurious, often metallic, materials. Think of 1920s architecture and design.`; break;
-        case 'Art Nouveau': styleInstruction = `For this request, lean towards an Art Nouveau style. Use long, sinuous, organic lines, floral and plant-inspired motifs, and a decorative, ornamental quality. Think Alphonse Mucha.`; break;
-
-        case 'Baroque': styleInstruction = `For this request, lean towards a Baroque style. Create scenes with dramatic intensity, rich, deep color, and strong contrasts of light and shadow. Think Caravaggio or Rembrandt.`; break;
-        case 'Bauhaus': styleInstruction = `For this request, lean towards a Bauhaus style. Focus on functionality, geometric purity, and a minimalist aesthetic that combines fine arts and crafts. Think Wassily Kandinsky or Paul Klee.`; break;
-        case 'Biopunk': styleInstruction = `For this request, lean towards a Biopunk style. Explore themes of genetic engineering and biological enhancement, often with organic, unsettling, and futuristic imagery.`; break;
-        case 'Boro': styleInstruction = `For this request, emulate the Japanese art of Boro, using patched and mended textiles to create a beautiful, textured, and layered look.`; break;
-        case 'Botanical Illustration': styleInstruction = `For this request, create a precise and detailed scientific illustration of a plant, emphasizing accuracy and form.`; break;
-        case 'Brutalism': styleInstruction = `For this request, adopt a Brutalist architectural style, featuring raw, unadorned concrete, massive blocky forms, and a stark, imposing aesthetic.`; break;
-        case 'Byzantine Art': styleInstruction = `For this request, emulate the art of the Byzantine Empire, characterized by rich colors, flattened perspectives, and religious iconography, often with gold backgrounds.`; break;
-
-        case 'Caricature': styleInstruction = `For this request, create a portrait that exaggerates or distorts the subject's features for a comedic or grotesque effect.`; break;
-        case 'Celtic Art': styleInstruction = `For this request, use intricate patterns of knots, spirals, and animal forms characteristic of Celtic art.`; break;
-        case 'Chiaroscuro': styleInstruction = `For this request, use strong contrasts between light and dark to model three-dimensional forms, creating a dramatic, theatrical effect. Think Caravaggio.`; break;
-        case 'Chibi': styleInstruction = `For this request, draw the subject in a Japanese 'Chibi' style, with a small body, oversized head, and cute, simple features.`; break;
-        case 'Cloisonnism': styleInstruction = `For this request, use a post-Impressionist style with bold, flat forms separated by dark contours, similar to cloisonné enamelwork. Think Paul Gauguin.`; break;
-        case 'Collage': styleInstruction = `For this request, create an image that looks like it's assembled from various different forms, such as paper, photographs, and other found objects.`; break;
-        case 'Constructivism': styleInstruction = `For this request, adopt the Russian Constructivist style, using geometric abstraction and social purpose to create a dynamic, modern look.`; break;
-        case 'Cross-hatching': styleInstruction = `For this request, use intersecting sets of parallel lines to create shading and texture, as in a drawing or engraving.`; break;
-        case 'Cubist': styleInstruction = `For this request, lean towards a Cubist style. The subject should be analyzed, broken up, and reassembled in an abstracted form—depicting the subject from a multitude of viewpoints. Think Picasso or Braque.`; break;
-        case 'Cyanotype': styleInstruction = `For this request, create the look of a Cyanotype, a photographic printing process that produces a cyan-blue print.`; break;
-        case 'Cyberpunk': styleInstruction = `For this request, lean towards a Cyberpunk style. Focus on a high-tech, low-life future with neon lights, cybernetics, and a dark, dystopian atmosphere. Think Blade Runner.`; break;
-
-        case 'Dadaism': styleInstruction = `For this request, adopt a Dadaist approach, rejecting logic and embracing irrationality, nonsense, and anti-art. The result can be absurd or satirical.`; break;
-        case 'De Stijl': styleInstruction = `For this request, use the De Stijl (The Style) aesthetic, with pure abstraction and universality by a reduction to the essentials of form and color; think vertical and horizontal lines and primary colors. Think Piet Mondrian.`; break;
-        case 'Decoupage': styleInstruction = `For this request, create the effect of decorating an object by gluing colored paper cutouts onto it in combination with special paint effects.`; break;
-        case 'Demoscene': styleInstruction = `For this request, emulate the aesthetic of the Demoscene, a computer art subculture focused on creating impressive real-time audiovisual presentations (demos).`; break;
-        case 'Dieselpunk': styleInstruction = `For this request, lean towards a Dieselpunk style. Combine the aesthetics of the 1920s-1950s with futuristic technology, featuring diesel-powered machinery and a gritty, industrial feel.`; break;
-        case 'Didone': styleInstruction = `For this request, create a typographical design using Didone (or modern) serifs, characterized by an extreme contrast between thick and thin lines.`; break;
-        case 'Dot Painting (Aboriginal)': styleInstruction = `For this request, emulate Australian Aboriginal dot painting, using dots of color to create intricate patterns and tell a story.`; break;
-        case 'Double Exposure': styleInstruction = `For this request, create an image that looks like two different photographs have been superimposed onto one another, blending scenes and subjects.`; break;
-
-        case 'Encaustic Painting': styleInstruction = `For this request, use heated beeswax mixed with colored pigments to create a textured, layered painting.`; break;
-        case 'Etching': styleInstruction = `For this request, emulate the fine, detailed lines and cross-hatching of an intaglio printmaking process.`; break;
-        case 'Expressionism': styleInstruction = `For this request, present the world from a subjective perspective, distorting it radically for emotional effect in order to evoke moods or ideas. Think Edvard Munch.`; break;
-
-        case 'Fantasy Art': styleInstruction = `For this request, lean towards a Fantasy Art style. Create scenes with magical or supernatural themes, mythical creatures, and epic, imagined landscapes. Think high fantasy book covers.`; break;
-        case 'Fauvism': styleInstruction = `For this request, lean towards Fauvism. Employ intense, non-naturalistic colors and bold brushstrokes to convey emotion directly. Think Henri Matisse.`; break;
-        case 'Figurative': styleInstruction = `For this request, create art that is clearly derived from real object sources and is, by definition, representational.`; break;
-        case 'Filigree': styleInstruction = `For this request, create a delicate, intricate ornamental work made from fine wires of precious metal.`; break;
-        case 'Flat Design': styleInstruction = `For this request, use a minimalist UI design style with flat, two-dimensional elements and bright colors.`; break;
-        case 'Folk Art': styleInstruction = `For this request, emulate traditional, often rustic and decorative art styles that reflect a specific community or culture.`; break;
-        case 'Fresco': styleInstruction = `For this request, emulate the technique of mural painting onto freshly laid, or wet lime plaster. The colors dry and set with the plaster to become a permanent part of the wall.`; break;
-        case 'Frottage': styleInstruction = `For this request, create the effect of taking a rubbing from an uneven surface to form a work of art, as popularized by Max Ernst.`; break;
-        case 'Futurism': styleInstruction = `For this request, adopt the Futurist style, emphasizing dynamism, speed, technology, youth, and violence.`; break;
-        
-        case 'Geometric Abstraction': styleInstruction = `For this request, use geometric forms placed into non-illusionistic space and combined into non-objective compositions.`; break;
-        case 'Glitch Art': styleInstruction = `For this request, intentionally use digital errors and artifacts for aesthetic purposes, creating fragmented, distorted, and colorful images.`; break;
-        case 'Gothic Art': styleInstruction = `For this request, create a style reminiscent of the medieval period, with dramatic, ornate details, pointed arches, and often religious or dark themes.`; break;
-        case 'Gouache': styleInstruction = `For this request, create the look of opaque watercolor, with flat, vibrant color fields and a matte finish.`; break;
-        case 'Graffiti': styleInstruction = `For this request, adopt a graffiti or street art aesthetic, using spray paint, stencils, or markers.`; break;
-        case 'Grisaille': styleInstruction = `For this request, create a painting executed entirely in shades of grey or another neutral greyish color.`; break;
-        case 'Grotesque': styleInstruction = `For this request, focus on strange, mysterious, magnificent, fantastic, hideous, ugly, incongruous, unpleasant, or disgusting, and thus is used to describe weird shapes and distorted forms.`; break;
-
-        case 'Haida Art': styleInstruction = `For this request, emulate the art of the Haida people, known for its bold lines (formlines), limited color palette (black, red, blue-green), and stylized animal crests.`; break;
-        case 'Hard-edge Painting': styleInstruction = `For this request, use paintings in which abrupt transitions are found between color areas. Color areas are often of one unvarying color.`; break;
-        case 'Harlem Renaissance': styleInstruction = `For this request, emulate the art of the Harlem Renaissance, celebrating African-American life and culture with a variety of styles from realist to modernist.`; break;
-        case 'High-Tech': styleInstruction = `For this request, adopt a High-Tech architectural and design style, incorporating elements of the advanced technology and industrial industry into the design.`; break;
-        case 'Holography': styleInstruction = `For this request, create an image that looks like a three-dimensional hologram, with a shimmering, light-based appearance.`; break;
-        case 'Hyperrealism': styleInstruction = `For this request, create a painting or sculpture resembling a high-resolution photograph. Hyperrealism is considered an advancement of Photorealism.`; break;
-
-        case 'Impasto': styleInstruction = `For this request, use a painting technique where paint is laid on an area of the surface in very thick layers, usually thick enough that the brush or painting-knife strokes are visible.`; break;
-        case 'Impressionistic': styleInstruction = `For this request, lean towards an Impressionistic style. Think visible brushstrokes, emphasis on light and its changing qualities, and ordinary subject matter. Like a painting by Monet or Renoir.`; break;
-        case 'Infrared Photography': styleInstruction = `For this request, emulate infrared photography, creating a dreamlike image where foliage appears white and skies are dark.`; break;
-        case 'Ink Wash Painting': styleInstruction = `For this request, use varying tones of black or colored ink to create a monochromatic, atmospheric painting style similar to traditional East Asian art.`; break;
-        case 'International Typographic Style': styleInstruction = `For this request, adopt the Swiss Style of graphic design, emphasizing cleanliness, readability, and objectivity through asymmetric layouts and sans-serif typefaces.`; break;
-        case 'Islamic Art': styleInstruction = `For this request, use intricate geometric patterns (arabesques), calligraphy, and vegetal motifs characteristic of Islamic art.`; break;
-
-        case 'Japonisme': styleInstruction = `For this request, emulate the influence of Japanese art, especially ukiyo-e, on Western art, featuring flattened perspectives and decorative patterns.`; break;
-        case 'Kawaii': styleInstruction = `For this request, adopt the Japanese 'kawaii' (cute) culture aesthetic, with charming, childlike characters and pastel colors.`; break;
-        case 'Kinetic Art': styleInstruction = `For this request, create an image that appears to have movement, or depends on motion for its effect.`; break;
-        case 'Kintsugi': styleInstruction = `For this request, emulate the Japanese art of Kintsugi, where broken pottery is repaired with lacquer dusted with powdered gold, highlighting the cracks as part of the object's history.`; break;
-        case 'Kirigami': styleInstruction = `For this request, create a variation of origami that includes cutting of the paper, resulting in a design that is often symmetrical and intricate.`; break;
-
-        case 'Land Art': styleInstruction = `For this request, create a work of art made directly in the landscape, sculpting the land itself or making structures in the landscape using natural materials.`; break;
-        case 'Letterpress': styleInstruction = `For this request, emulate the look of letterpress printing, with a tactile impression of type and graphics into the paper.`; break;
-        case 'Light and Space': styleInstruction = `For this request, create art focused on perceptual phenomena, such as light, volume and scale, where the installation itself is the work of art.`; break;
-        case 'Line Art': styleInstruction = `For this request, lean towards a minimalist Line Art style. The image should be composed of clean, simple lines with minimal shading or color, focusing on form and shape.`; break;
-        case 'Lomography': styleInstruction = `For this request, emulate the look of Lomography cameras, with high contrast, saturated colors, vignettes, and unpredictable light leaks.`; break;
-        case 'Lowbrow (Pop Surrealism)': styleInstruction = `For this request, adopt a Lowbrow or Pop Surrealist style, which has its roots in underground comix, punk music, and hot-rod street culture.`; break;
-        case 'Lyrical Abstraction': styleInstruction = `For this request, create a soft, romantic, and fluid form of abstract painting, emphasizing color and mood.`; break;
-
-        case 'Macrame': styleInstruction = `For this request, create an image with the texture and patterns of macrame, a form of textile produced using knotting techniques.`; break;
-        case 'Majolica': styleInstruction = `For this request, emulate Italian tin-glazed pottery, known for its bright, vibrant colors on a white background.`; break;
-        case 'Mandala': styleInstruction = `For this request, create a spiritual and ritual symbol in Hinduism and Buddhism, representing the universe. It often exhibits a balanced, geometric design.`; break;
-        case 'Mannerism': styleInstruction = `For this request, adopt the Mannerist style, with its artificial and elegant qualities, elongated proportions, and intellectual sophistication.`; break;
-        case 'Marquetry': styleInstruction = `For this request, create the effect of applying pieces of veneer to a structure to form decorative patterns, designs or pictures.`; break;
-        case 'Memphis Group': styleInstruction = `For this request, use the Memphis Group design style of the 1980s, characterized by colorful, asymmetrical, and kitschy designs.`; break;
-        case 'Metaphysical Art': styleInstruction = `For this request, create a dreamlike, metaphysical scene with sharp contrasts in light and shadow, and a mysterious, enigmatic quality. Think Giorgio de Chirico.`; break;
-        case 'Mexican Muralism': styleInstruction = `For this request, emulate the grand, narrative-driven murals of Mexican artists like Diego Rivera, often with social and political themes.`; break;
-        case 'Micrography': styleInstruction = `For this request, create a Jewish art form that uses tiny Hebrew letters to form representational, geometric and abstract designs.`; break;
-        case 'Minimalism': styleInstruction = `For this request, lean towards a Minimalist style. Use a limited number of simple elements, clean lines, and negative space to create a powerful effect. Focus on extreme simplicity.`; break;
-        case 'Minoan Art': styleInstruction = `For this request, emulate the art of the Bronze Age Minoan civilization, known for its lively, nature-inspired frescoes and pottery.`; break;
-        case 'Miserere': styleInstruction = `For this request, create a small wooden shelf on the underside of a folding seat in a church, typically carved with secular or profane subjects.`; break;
-        case 'Mosaic': styleInstruction = `For this request, create an image from an assemblage of small pieces of colored glass, stone, or other materials.`; break;
-        
-        case 'Nautical': styleInstruction = `For this request, use themes and imagery related to the sea, sailors, and maritime life.`; break;
-        case 'Neoclassicism': styleInstruction = `For this request, adopt the style of ancient Greek and Roman art, emphasizing order, clarity, and idealism. Think Jacques-Louis David.`; break;
-        case 'Neo-Impressionism': styleInstruction = `For this request, use a technique like Pointillism or Divisionism, applying separate dots or strokes of color that interact in the viewer's eye. Think Georges Seurat.`; break;
-        
-        case 'Op Art': styleInstruction = `For this request, use optical illusions to create an impression of movement, hidden images, or vibrating patterns.`; break;
-        case 'Origami': styleInstruction = `For this request, create an image that looks like it's made from folded paper, with sharp creases and geometric shapes.`; break;
-        case 'Orphism': styleInstruction = `For this request, create a form of Cubism that focuses on pure abstraction and bright colors, influenced by Fauvism.`; break;
-        case 'Outsider Art': styleInstruction = `For this request, emulate art created by self-taught or naive art makers, often with a raw, unconventional style.`; break;
-        
-        case 'Paper Quilling': styleInstruction = `For this request, use strips of paper that have been rolled, shaped, and glued together to create decorative designs.`; break;
-        case 'Parchment Craft': styleInstruction = `For this request, create art on parchment paper using techniques such as embossing, perforating, stippling, cutting and coloring.`; break;
-        case 'Pastel Drawing': styleInstruction = `For this request, emulate the soft, blendable texture of pastel sticks, creating a painterly effect with rich, soft colors.`; break;
-        case 'Persian Miniature': styleInstruction = `For this request, create a small, detailed painting from a Persian manuscript, characterized by its rich colors and intricate composition.`; break;
-        case 'Photorealism': styleInstruction = `For this request, create a painting that is as realistic as a photograph, often focusing on mundane subjects.`; break;
-        case 'Pinhole Photography': styleInstruction = `For this request, emulate the look of a pinhole camera, with soft focus, high depth of field, and often long exposure times.`; break;
-        case 'Pixel Art': styleInstruction = `For this request, lean towards a retro Pixel Art style. The concept should be suitable for a 16-bit or 32-bit video game, with clear pixel clusters and a limited color palette.`; break;
-        case 'Pointillism': styleInstruction = `For this request, create the image using small, distinct dots of color applied in patterns to form an image. Think Georges Seurat.`; break;
-        case 'Pop Art': styleInstruction = `For this request, lean towards a Pop Art style. Think bold outlines, bright, saturated colors, and imagery from popular culture. Think Andy Warhol or Roy Lichtenstein.`; break;
-        case 'Post-Impressionism': styleInstruction = `For this request, use vivid colors, thick application of paint, and distinctive brushstrokes, but with a greater emphasis on geometric forms and emotional expression than Impressionism. Think Van Gogh or Cézanne.`; break;
-        case 'Precisionism': styleInstruction = `For this request, emulate the first real indigenous modern art movement in the United States, celebrating the industrial landscape with crisp, geometric forms.`; break;
-        case 'Primitivism': styleInstruction = `For this request, emulate the aesthetic of prehistoric or non-Western art, often with a raw, unrefined quality.`; break;
-        case 'Psychedelic': styleInstruction = `For this request, use surreal, abstract imagery, vibrant, distorted colors, and intricate patterns inspired by 1960s counter-culture.`; break;
-        case 'Pyrography': styleInstruction = `For this request, create the art of decorating wood or other materials with burn marks resulting from the controlled application of a heated object.`; break;
-        
-        case 'Rayonism': styleInstruction = `For this request, use an abstract art style that depicts rays of light and their reflections.`; break;
-        case 'Renaissance': styleInstruction = `For this request, emulate the style of the masters from the 14th-16th centuries, focusing on realism, perspective, and classical themes. Think Leonardo da Vinci or Michelangelo.`; break;
-        case 'Risograph': styleInstruction = `For this request, emulate the look of a Risograph print, with a limited color palette, grainy texture, and characteristic misregistration.`; break;
-        case 'Rococo': styleInstruction = `For this request, create light, ornate, and elaborate scenes with a playful and whimsical tone, often featuring pastel colors and asymmetrical designs. Think Jean-Honoré Fragonard.`; break;
-        case 'Roman Art': styleInstruction = `For this request, emulate the art of Ancient Rome, known for its realistic portraiture, historical narratives, and grand architecture.`; break;
-        case 'Romanticism': styleInstruction = `For this request, emphasize intense emotion, individualism, and the awe-inspiring power of nature. Think Caspar David Friedrich or J.M.W. Turner.`; break;
-        case 'Russian Icons': styleInstruction = `For this request, create a religious icon in the traditional Russian Orthodox style, with stylized figures, symbolic colors, and often a gold leaf background.`; break;
-
-        case 'Sfumato': styleInstruction = `For this request, use a painting technique for softening the transition between colors, mimicking an area beyond what the human eye is focusing on. Think Leonardo da Vinci's Mona Lisa.`; break;
-        case 'Sgraffito': styleInstruction = `For this request, use a technique of applying a layer of plaster or paint, and then scratching it away to reveal a lower layer of a different color.`; break;
-        case 'Shibori': styleInstruction = `For this request, emulate the Japanese manual resist dyeing technique, which produces a number of different patterns on fabric.`; break;
-        case 'Social Realism': styleInstruction = `For this request, create art that draws attention to the everyday conditions of the working class and the poor.`; break;
-        case 'Sots Art': styleInstruction = `For this request, use a Soviet version of Pop Art, combining elements of Socialist Realism and Western Pop Art in a conceptual framework.`; break;
-        case 'Sound Art': styleInstruction = `For this request, create a visual representation of a sound installation or an art form in which sound is the primary medium.`; break;
-        case 'Stained Glass': styleInstruction = `For this request, create an image that looks like it is made from pieces of colored glass held together by lead strips, with bold black outlines and vibrant, translucent colors.`; break;
-        case 'Steampunk': styleInstruction = `For this request, lean towards a Steampunk style. Combine Victorian-era aesthetics with industrial, steam-powered machinery. Think brass, gears, and intricate clockwork.`; break;
-        case 'Stippling': styleInstruction = `For this request, create a drawing using numerous small dots or specks.`; break;
-        case 'Street Art': styleInstruction = `For this request, emulate the style of graffiti, stencils, and murals found in urban environments. Think Banksy or Shepard Fairey.`; break;
-        case 'Suprematism': styleInstruction = `For this request, adopt the Russian abstract art movement characterized by basic geometric forms, such as circles, squares, lines, and rectangles, painted in a limited range of colors. Think Kazimir Malevich.`; break;
-        case 'Surrealist': styleInstruction = `For this request, lean towards a Surrealist style. Create dream-like, bizarre, and illogical scenes. Think of the works of Salvador Dalí or Max Ernst.`; break;
-        case 'Symbolism': styleInstruction = `For this request, use symbols and indirect suggestion to express mystical ideas, emotions, and states of mind.`; break;
-        case 'Synthetism': styleInstruction = `For this request, use a post-Impressionist style that emphasizes two-dimensional flat patterns, rejecting naturalism and Impressionism.`; break;
-        case 'Synthwave': styleInstruction = `For this request, lean towards a Synthwave style. Think 1980s retrofuturism, neon grids, vibrant pinks and blues, and a nostalgic, electronic feel.`; break;
-
-        case 'Tachisme': styleInstruction = `For this request, use a French style of abstract painting popular in the 1940s and 1950s, characterized by splotches or stains of color.`; break;
-        case 'Tattoo Art': styleInstruction = `For this request, adopt styles common in tattooing, such as bold outlines, specific shading techniques, and traditional motifs (e.g., American Traditional, Irezumi).`; break;
-        case 'Technical Drawing': styleInstruction = `For this request, emulate the precise, detailed look of a blueprint or technical illustration, with clean lines, annotations, and a focus on structure.`; break;
-        case 'Tenebrism': styleInstruction = `For this request, use a dramatic form of chiaroscuro where darkness is a dominating feature of the image.`; break;
-        case 'Tiki Art': styleInstruction = `For this request, adopt the style of mid-century Tiki culture, featuring romanticized imagery of tropical locations, carved tikis, and exotic cocktails.`; break;
-        case 'Tribal Art': styleInstruction = `For this request, use bold patterns, symbolic imagery, and natural materials inspired by the artistic traditions of indigenous cultures.`; break;
-        case 'Trompe-l\'œil': styleInstruction = `For this request, create an art technique that uses realistic imagery to create the optical illusion that the depicted objects exist in three dimensions.`; break;
-
-        case 'Ukiyo-e': styleInstruction = `For this request, adopt the style of Japanese woodblock prints from the Edo period. Feature flowing outlines, flat areas of color, and subjects from history or daily life. Think Hokusai or Hiroshige.`; break;
-        
-        case 'Vaporwave': styleInstruction = `For this request, create a nostalgic, surrealist aesthetic inspired by 1980s and 1990s internet culture, with classical statues, glitch art, and pastel colors.`; break;
-        case 'Vector Art': styleInstruction = `For this request, create a clean, scalable image with sharp lines, flat colors, and geometric precision, as if made with vector graphics software.`; break;
-        case 'Verism': styleInstruction = `For this request, use a style of post-Romantic opera that deals with the everyday or sordid, and which is expressed through realistic, often violent, representation.`; break;
-        case 'Vintage Photo': styleInstruction = `For this request, lean towards a vintage photography style. Emulate the look of old film, daguerreotypes, or sepia-toned prints from a specific historical era.`; break;
-        case 'Vorticism': styleInstruction = `For this request, use a British art movement of the early 20th century that combined the clean lines of Cubism with the dynamism of Futurism.`; break;
-        case 'Voxel Art': styleInstruction = `For this request, create a 3D scene that looks like it's built from 3D pixels (voxels), giving it a blocky, retro 3D game aesthetic.`; break;
-        
-        case 'Wabi-sabi': styleInstruction = `For this request, adopt the Japanese aesthetic centered on the acceptance of transience and imperfection, often with a rustic, simple, and natural feel.`; break;
-        case 'Whimsical': styleInstruction = `For this request, create a playfully quaint or fanciful image, especially in an appealing and amusing way.`; break;
-        case 'Woodcut Print': styleInstruction = `For this request, create a look with stark contrasts and bold, graphic lines, as if carved from a wooden block.`; break;
-
+        case 'Artistic':
+            styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`;
+            break;
         case 'Realism':
-        default:
             styleInstruction = `For this request, focus on photorealistic concepts that look like they could be real photographs, even if the subject matter is fantastical.`;
             break;
+        default:
+            // For any other specific style selected
+            styleInstruction = `For this request, you will generate a concept based on a specific artistic style.`;
+            genreConstraint = `CRITICAL REQUIREMENT: The 'genre' field in the output JSON MUST be '${style}'. This is not optional. The entire concept, including all details, must reflect the '${style}' artistic style.`;
+            break;
+    }
+
+    let mainInstruction: string;
+    if (gender2) {
+        mainInstruction = `Your task is to generate a wildly creative photo edit concept involving two subjects: Subject 1 (${gender1}) and Subject 2 (${gender2}). Create a cohesive scene where they interact or coexist. The output MUST be a valid JSON object. ${styleInstruction}`;
+    } else {
+        mainInstruction = `Your task is to generate a wildly creative photo edit concept involving a single subject (${gender1}). The output MUST be a valid JSON object. ${styleInstruction}`;
+    }
+    promptParts.push(mainInstruction);
+
+    if (genreConstraint) {
+        promptParts.push(genreConstraint);
     }
     
-    let mainInstruction = `Your task is to generate a wildly creative and random photo edit concept. The output MUST be a valid JSON object. There are absolutely no limits to your imagination. You can generate concepts ranging from photorealistic scenes to abstract art, from cinematic epics to simple charcoal sketches, from cartoons to oil paintings. Be unpredictable. ${styleInstruction}`;
-    
-    mainInstruction += ` Create a full, random concept for a ${gender} subject.`;
-    promptParts.push(mainInstruction);
-    
-    promptParts.push(`The concept you generate MUST be suitable for a ${quality === 'high' ? 'high-quality, highly detailed' : 'standard quality'} image. CRITICAL: The composition must strictly adhere to a cinematic ${aspectRatio} aspect ratio. Take this into account when designing the scene (e.g., 16:9 is wide and cinematic, 9:16 is tall and good for portraits). This is a strict requirement.`);
+    const hasDetails = (details?: Partial<SubjectSpecificDetails>): boolean => {
+        if (!details) return false;
+        return !!details.costume || !!details.subject_action || !!details.subject_expression;
+    };
 
-    // Part 2: JSON structure instructions
+    if (hasDetails(subject1Details)) {
+        const providedDetails: string[] = [];
+        if (subject1Details?.costume) providedDetails.push(`costume must be exactly: '${subject1Details.costume}'`);
+        if (subject1Details?.subject_expression) providedDetails.push(`expression must be exactly: '${subject1Details.subject_expression}'`);
+        if (subject1Details?.subject_action) providedDetails.push(`action must be exactly: '${subject1Details.subject_action}'`);
+        promptParts.push(`CRITICAL REQUIREMENT for Subject 1: You MUST use these specific details: ${providedDetails.join('; ')}. Fill in any missing details creatively but these are MANDATORY.`);
+    }
+
+    if (gender2 && hasDetails(subject2Details)) {
+        const providedDetails: string[] = [];
+        if (subject2Details?.costume) providedDetails.push(`costume must be exactly: '${subject2Details.costume}'`);
+        if (subject2Details?.subject_expression) providedDetails.push(`expression must be exactly: '${subject2Details.subject_expression}'`);
+        if (subject2Details?.subject_action) providedDetails.push(`action must be exactly: '${subject2Details.subject_action}'`);
+        promptParts.push(`CRITICAL REQUIREMENT for Subject 2: You MUST use these specific details: ${providedDetails.join('; ')}. Fill in any missing details creatively but these are MANDATORY.`);
+    }
+
+    promptParts.push(`The concept you generate MUST be suitable for a ${quality === 'high' ? 'high-quality, highly detailed' : 'standard quality'} image. CRITICAL: The composition must strictly adhere to a cinematic ${aspectRatio} aspect ratio.`);
+
     const jsonStructure = {
-      prompt: "A main instruction string that starts with 'You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved.' followed by a summary of the concept.",
+      prompt: "A main instruction string that starts with 'You will perform an image edit...' followed by a summary of the concept.",
       details: {
-        year: "A specific year or era (e.g., 1985, Cyberpunk Future, Ancient Rome)",
-        genre: "A specific genre, style, or artistic medium (e.g., Sci-Fi Noir, Charcoal Sketch, 80s Anime)",
+        year: "e.g., 1985, Cyberpunk Future, Ancient Rome",
+        genre: "e.g., Sci-Fi Noir, Charcoal Sketch, 80s Anime",
         location: "A vivid description of the setting.",
-        lighting: "A description of the lighting.",
+        lighting: ["A description of the lighting."],
         camera_angle: "A specific camera angle.",
-        emotion: "The dominant emotion of the scene.",
-        costume: "A description of the subject's clothing and accessories.",
-        color_palette: "The key colors of the scene.",
-        atmosphere: "A rich, evocative description of the overall mood and atmosphere.",
-        subject_expression: "A specific facial expression for the subject (e.g., 'a knowing smirk', 'serene contemplation').",
-        subject_action: "A specific, subtle action the subject is performing (e.g., 'adjusting a cufflink', 'gazing at a pocket watch').",
-        environmental_elements: "Key dynamic or static elements in the environment (e.g., 'falling snow, swirling fog, lens flare').",
+        emotion: ["The dominant emotion of the scene."],
+        color_palette: ["The key colors of the scene."],
+        atmosphere: ["The overall mood and atmosphere."],
+        environmental_elements: "Key dynamic or static elements.",
+        subject1: {
+          costume: "Subject 1's clothing and accessories.",
+          subject_expression: "Subject 1's facial expression.",
+          subject_action: "Subject 1's action."
+        },
+        subject2: { // This key should ONLY be included if the prompt is for two subjects.
+          costume: "Subject 2's clothing and accessories.",
+          subject_expression: "Subject 2's facial expression.",
+          subject_action: "Subject 2's action."
+        },
         negative_prompt: {
-          exclude_visuals: ["A list of specific visual elements to avoid, e.g., 'blurry background', 'extra limbs'"],
-          exclude_styles: ["A list of artistic styles to avoid, e.g., 'cartoon', '3D render'"]
+          exclude_visuals: ["Visuals to avoid"],
+          exclude_styles: ["Styles to avoid"]
         }
       }
     };
     promptParts.push('The response MUST be a single, valid JSON object following this exact structure:');
     promptParts.push(JSON.stringify(jsonStructure, null, 2));
-    promptParts.push("A CRITICAL part of the response is the 'negative_prompt' object. It MUST be generated for EVERY concept. The negative prompts should be tailored specifically to the generated concept. For example, for a 'noir' film concept, you might exclude 'bright, happy colors'. For a 'charcoal sketch', you might exclude 'photorealistic textures'. Be thoughtful and specific. This is not optional and must be included.");
+    promptParts.push("CRITICAL: The 'negative_prompt' object MUST be generated for EVERY concept. Tailor it to the specific concept. This is not optional.");
+    if (gender2) {
+        promptParts.push("CRITICAL: Because two subjects were requested, the final JSON object MUST include the `subject2` details object.");
+    } else {
+        promptParts.push("CRITICAL: Because only one subject was requested, the final JSON object must NOT include the `subject2` key.");
+    }
 
-    // Part 3: Examples
-    promptParts.push('\nHere are some examples to show the desired output format and quality. Do NOT copy their themes. Be original and explore different styles.');
+    promptParts.push('\nHere are some examples. Do NOT copy their themes. Be original.');
     promptExamples.forEach((example, index) => {
         promptParts.push(`\nExample ${index + 1}:`);
         promptParts.push(JSON.stringify(example, null, 2));
     });
 
-    // Part 4: Final instruction
-    promptParts.push(`\nCRITICAL INSTRUCTION: Now, generate a brand new concept. It MUST be completely different in theme, style, artistic medium, and subject matter from all the examples provided. Your goal is maximum randomness and creativity. Remember to generate specific, context-aware negative prompts for your new concept. It could be a simple scene, a cartoon, a painting, a sketch, or a cinematic shot. Be unpredictable. The only rule is to preserve the subject's facial features. Generate the concept as a valid JSON object.`);
+    promptParts.push(`\nCRITICAL INSTRUCTION: Now, generate a brand new concept. It MUST be completely different from the examples. Be unpredictable. Remember to generate specific, context-aware negative prompts. Generate the concept as a valid JSON object.`);
 
     return promptParts.join('\n');
 };
 
 export const generateEditPrompt = async (
-    gender: string,
+    gender1: Gender,
+    gender2: Gender | null,
     quality: string,
     aspectRatio: string,
     style: ArtisticStyle,
     textModel: TextModel,
     apiKey?: string | null,
+    subject1Details?: Partial<SubjectSpecificDetails>,
+    subject2Details?: Partial<SubjectSpecificDetails>
 ): Promise<Prompt> => {
     const ai = getAiClient(apiKey);
     incrementApiUsage(!!apiKey); // Track API call
-    const response = await ai.models.generateContent({
+    const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: textModel,
-        contents: getPromptGenerationContent(gender, quality, aspectRatio, style),
+        contents: getPromptGenerationContent(gender1, gender2, quality, aspectRatio, style, subject1Details, subject2Details),
         config: {
-            systemInstruction: "You are a creative director specializing in generating imaginative and cinematic photo edit concepts across all artistic styles. You must output your response as a valid JSON object.",
+            systemInstruction: "You are a creative director specializing in generating imaginative and cinematic photo edit concepts. You must output your response as a valid JSON object.",
             responseMimeType: "application/json",
-            // Fix: Added responseSchema to ensure the model returns a valid JSON object.
             responseSchema: promptSchema,
         },
-    });
+    }));
 
     try {
         let jsonText = response.text.trim();
-        // The model might wrap the JSON in markdown fences. We need to remove them for robust parsing.
         if (jsonText.startsWith("```json")) {
             jsonText = jsonText.substring(7, jsonText.length - 3).trim();
         } else if (jsonText.startsWith("```")) {
@@ -567,26 +349,27 @@ export const generateEditPrompt = async (
         }
         const parsedJson = JSON.parse(jsonText);
 
-        // Enhancement: Add validation to ensure the parsed object has the expected structure.
-        // This makes the function more resilient to unexpected model outputs.
-        if (!parsedJson || typeof parsedJson.prompt !== 'string' || typeof parsedJson.details !== 'object' ||
-            !parsedJson.details.genre || !parsedJson.details.subject_action || !parsedJson.details.location) {
+        if (!parsedJson || typeof parsedJson.prompt !== 'string' || typeof parsedJson.details !== 'object' || !parsedJson.details.subject1) {
             console.error("Parsed JSON is missing required fields:", parsedJson);
             throw new Error("The AI returned a JSON object with an unexpected structure.");
+        }
+        
+        // Ensure subject2 is either an object or not present, not null or something else.
+        if (parsedJson.details.subject2 === null) {
+            delete parsedJson.details.subject2;
         }
 
         return parsedJson as Prompt;
     } catch (e) {
         console.error("Failed to parse JSON response from Gemini:", response.text, e);
-        // Consolidate error message for better debugging.
         const errorMessage = e instanceof Error ? e.message : "An unknown parsing error occurred.";
         throw new Error(`The AI returned an unexpected format. ${errorMessage}`);
     }
 };
 
 export const editImageWithGemini = async (
-    base64ImageData: string,
-    mimeType: string,
+    imageData1: { base64: string, mimeType: string } | null,
+    imageData2: { base64: string, mimeType: string } | null,
     prompt: Prompt,
     quality: string,
     aspectRatio: string,
@@ -594,21 +377,29 @@ export const editImageWithGemini = async (
     apiKey?: string | null,
     removeBackground?: boolean,
 ): Promise<string> => {
+    if (!imageData1) {
+        throw new Error("The first image is required for editing.");
+    }
+
     const ai = getAiClient(apiKey);
-    incrementApiUsage(!!apiKey); // Track API call
-    
+    incrementApiUsage(!!apiKey);
+
     const instructionParts = [];
     if (removeBackground) {
-        instructionParts.push("First, perfectly remove the background from the image, making it transparent. The subject must be fully and cleanly isolated.");
+        instructionParts.push("First, perfectly remove the background from all subjects in the image, making it transparent. The subjects must be fully and cleanly isolated.");
     }
-    instructionParts.push("Preserve the core facial features (eyes, nose, mouth, jawline) of the person in the image. They must remain recognizable. You can creatively change hair style and color, add accessories like hats or glasses, and alter skin coloring to fit the new theme. Do not change the fundamental facial structure.");
+
+    if (imageData2) {
+        instructionParts.push("ABSOLUTELY CRITICAL: This prompt involves two people. Use the person from the FIRST uploaded image as Subject 1, and the person from the SECOND uploaded image as Subject 2. You MUST preserve the exact facial features of BOTH individuals from their original photos. This includes their unique eyes, nose, mouth, jawline, and overall facial structure. While adapting them to the new artistic style, it is PARAMOUNT that BOTH people remain CLEARLY AND UNMISTAKABLY RECOGNIZABLE. Do not alter their core likeness.");
+    } else {
+        instructionParts.push("ABSOLUTELY CRITICAL: You MUST preserve the exact facial features of the person in the original photo. This includes their unique eyes, nose, mouth, jawline, and overall facial structure. While adapting them to the new artistic style, it is PARAMOUNT that the person remains CLEARLY AND UNMISTAKABLY RECOGNIZABLE. Do not alter their core likeness.");
+    }
     
     instructionParts.push(`Now, apply the following creative edit: ${prompt.prompt}`);
 
     const { negative_prompt } = prompt.details;
     if (negative_prompt) {
-        const { exclude_visuals = [], exclude_styles = [] } = negative_prompt;
-        const allExclusions = [...exclude_visuals, ...exclude_styles];
+        const allExclusions = [...(negative_prompt.exclude_visuals || []), ...(negative_prompt.exclude_styles || [])];
         if (allExclusions.length > 0) {
             instructionParts.push(`--- NEGATIVE PROMPT: Strictly avoid the following elements and styles: ${allExclusions.join(', ')}.`);
         }
@@ -616,32 +407,35 @@ export const editImageWithGemini = async (
     
     let finalPrompt = `CRITICAL INSTRUCTION: ${instructionParts.join(' ')}`;
 
-    if (quality === 'high') {
-        finalPrompt += ' The final image should be of high quality, with fine details, sharp focus, and a professional, photorealistic finish.';
-    }
-    if (aspectRatio && aspectRatio !== '1:1') {
-        finalPrompt += ` CRITICAL: The final image's composition MUST strictly adhere to a cinematic ${aspectRatio} aspect ratio.`;
+    if (quality === 'high') finalPrompt += ' The final image should be of high quality, with fine details and a professional finish.';
+    if (aspectRatio && aspectRatio !== '1:1') finalPrompt += ` CRITICAL: The final image's composition MUST strictly adhere to a cinematic ${aspectRatio} aspect ratio.`;
+    
+    const contentParts = [];
+    contentParts.push({
+        inlineData: {
+            data: imageData1.base64,
+            mimeType: imageData1.mimeType,
+        },
+    });
+
+    if (imageData2) {
+        contentParts.push({
+            inlineData: {
+                data: imageData2.base64,
+                mimeType: imageData2.mimeType,
+            },
+        });
     }
 
-    const response = await ai.models.generateContent({
+    contentParts.push({ text: finalPrompt });
+
+    const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: imageModel,
-        contents: {
-            parts: [
-                {
-                    inlineData: {
-                        data: base64ImageData,
-                        mimeType: mimeType,
-                    },
-                },
-                {
-                    text: finalPrompt,
-                },
-            ],
-        },
+        contents: { parts: contentParts },
         config: {
             responseModalities: [Modality.IMAGE],
         },
-    });
+    }));
 
     for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) {

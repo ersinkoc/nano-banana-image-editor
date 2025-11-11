@@ -33,6 +33,12 @@ export interface NegativePrompt {
   exclude_styles: string[];
 }
 
+export interface SubjectSpecificDetails {
+  costume: string;
+  subject_expression: string;
+  subject_action: string;
+}
+
 export interface PromptDetails {
   medium: string;
   genre: string;
@@ -43,10 +49,9 @@ export interface PromptDetails {
   emotion: string[];
   year: string;
   location:string;
-  costume: string;
-  subject_expression: string;
-  subject_action: string;
   environmental_elements: string;
+  subject1: SubjectSpecificDetails;
+  subject2?: SubjectSpecificDetails;
   negative_prompt?: NegativePrompt;
 }
 

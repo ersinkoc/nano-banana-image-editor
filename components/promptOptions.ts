@@ -1,14 +1,12 @@
-import type { PromptDetails } from '../types';
-
 export interface PromptOptionSection {
   title: string;
-  key: keyof PromptDetails;
+  key: string;
   type: 'single' | 'multi' | 'text';
   placeholder?: string;
   options?: readonly string[];
 }
 
-export const customPromptSections: readonly PromptOptionSection[] = [
+export const sceneSections: readonly PromptOptionSection[] = [
   {
     title: 'Art Medium',
     key: 'medium',
@@ -64,27 +62,31 @@ export const customPromptSections: readonly PromptOptionSection[] = [
     placeholder: 'e.g., An enchanted forest, a neon-lit alley',
   },
   {
+    title: 'Environmental Elements',
+    key: 'environmental_elements',
+    type: 'text',
+    placeholder: 'e.g., Falling cherry blossoms, distant fog',
+  },
+];
+
+
+export const subjectSections: readonly PromptOptionSection[] = [
+   {
     title: 'Costume / Appearance',
     key: 'costume',
     type: 'text',
     placeholder: 'e.g., Worn leather jacket, elegant ball gown',
   },
   {
-    title: 'Subject Expression',
+    title: 'Expression',
     key: 'subject_expression',
     type: 'text',
     placeholder: 'e.g., A subtle, knowing smile',
   },
   {
-    title: 'Subject Action',
+    title: 'Action',
     key: 'subject_action',
     type: 'text',
     placeholder: 'e.g., Adjusting their glasses, holding a book',
-  },
-  {
-    title: 'Environmental Elements',
-    key: 'environmental_elements',
-    type: 'text',
-    placeholder: 'e.g., Falling cherry blossoms, distant fog',
   },
 ];

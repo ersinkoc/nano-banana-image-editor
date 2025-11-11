@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import type { Prompt, PromptDetails, Gender, ImageData, ArtisticStyle, TextModel } from '../types';
+import type { Gender, ImageData, ArtisticStyle, TextModel, SubjectSpecificDetails } from '../types';
 import { ImageUploader } from './ImageUploader';
 import { GenderSelector } from './GenderSelector';
-import { CustomPromptModal } from './CustomPromptModal';
 
 interface PromptCustomizerProps {
-  onGenerateRandom: (gender: Gender, style: ArtisticStyle, numImages: number) => void;
-  onGenerateCustom: (prompt: Prompt, numImages: number) => void;
-  onImageUpload: (imageData: ImageData | null) => void;
+  onGenerateRandom: (
+    gender1: Gender,
+    gender2: Gender | null,
+    style: ArtisticStyle,
+    numImages: number,
+    subject1Details: SubjectSpecificDetails,
+    subject2Details: SubjectSpecificDetails
+  ) => void;
+  onImageUpload: (imageData: ImageData | null, personIndex: 1 | 2) => void;
+  uploadedImage1: ImageData | null;
+  uploadedImage2: ImageData | null;
   isDisabled: boolean;
   numImages: 1 | 2 | 3 | 4;
   setNumImages: (num: 1 | 2 | 3 | 4) => void;
@@ -18,12 +25,6 @@ interface PromptCustomizerProps {
   textModel: TextModel;
   setTextModel: (model: TextModel) => void;
 }
-
-const initialDetails: PromptDetails = {
-  medium: '', genre: '', lighting: [], camera_angle: '', color_palette: [], atmosphere: [], emotion: [], year: '',
-  location: '', costume: '', subject_expression: '', subject_action: '', environmental_elements: '',
-  negative_prompt: { exclude_visuals: [], exclude_styles: [] },
-};
 
 const SettingButtonGroup: React.FC<{
     label: string;
@@ -51,6 +52,26 @@ const SettingButtonGroup: React.FC<{
                 </button>
             ))}
         </div>
+    </div>
+);
+
+const SubjectDetailInput: React.FC<{
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    disabled?: boolean;
+}> = ({ label, value, onChange, placeholder, disabled }) => (
+    <div className="space-y-1">
+        <label className={`text-xs font-medium text-muted-foreground ${disabled ? 'opacity-50' : ''}`}>{label}</label>
+        <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={disabled}
+            className="w-full h-9 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+        />
     </div>
 );
 
@@ -245,156 +266,183 @@ const styleOptions = [...allStyleOptions].sort((a, b) => {
 
 
 export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({ 
-    onGenerateRandom, onGenerateCustom, onImageUpload, isDisabled,
+    onGenerateRandom, onImageUpload, uploadedImage1, uploadedImage2, isDisabled,
     numImages, setNumImages, isJsonOnly, setIsJsonOnly,
     removeBackground, setRemoveBackground,
     textModel, setTextModel
 }) => {
-  const [gender, setGender] = useState<Gender>('unspecified');
+  const [gender1, setGender1] = useState<Gender>('unspecified');
+  const [gender2, setGender2] = useState<Gender>('unspecified');
   const [style, setStyle] = useState<ArtisticStyle>('Realism');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  const [customDetails, setCustomDetails] = useState<PromptDetails>(() => {
-    try {
-      const savedDetails = window.localStorage.getItem('lastCustomPromptDetails');
-      if (savedDetails) {
-        return { ...initialDetails, ...JSON.parse(savedDetails) };
-      }
-      return initialDetails;
-    } catch (error) {
-      console.error("Failed to load custom prompt details from localStorage:", error);
-      return initialDetails;
-    }
-  });
-
-  const handleGenerateFromModal = (prompt: Prompt) => {
-      setCustomDetails(prompt.details);
-      try {
-        window.localStorage.setItem('lastCustomPromptDetails', JSON.stringify(prompt.details));
-      } catch (error) {
-        console.error("Failed to save custom prompt details to localStorage:", error);
-      }
-      onGenerateCustom(prompt, isJsonOnly ? 0 : numImages);
-  };
+  const [subject1Details, setSubject1Details] = useState<SubjectSpecificDetails>({ costume: '', subject_expression: '', subject_action: '' });
+  const [subject2Details, setSubject2Details] = useState<SubjectSpecificDetails>({ costume: '', subject_expression: '', subject_action: '' });
+  const [isDetails1Open, setIsDetails1Open] = useState(false);
+  const [isDetails2Open, setIsDetails2Open] = useState(false);
   
   const imagesToGenerate = isJsonOnly ? 0 : numImages;
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <Card>
-        <CardHeader title="1. Upload Photo" description="Start by uploading a clear profile photo." />
-        <CardContent>
-            <ImageUploader onImageUpload={onImageUpload} />
+        <CardHeader title="1. Person 1" description="Upload photo and add details." />
+        <CardContent className="space-y-4">
+            <ImageUploader onImageUpload={(img) => onImageUpload(img, 1)} uploadedImage={uploadedImage1} />
+            <GenderSelector selectedGender={gender1} onGenderChange={setGender1} />
+            <div className="pt-2 border-t border-border">
+                <button
+                    type="button"
+                    onClick={() => setIsDetails1Open(!isDetails1Open)}
+                    className="w-full flex justify-between items-center py-2"
+                    aria-expanded={isDetails1Open}
+                    aria-controls="subject1-details"
+                    disabled={isDisabled}
+                >
+                    <h5 className={`text-sm font-semibold text-card-foreground ${isDisabled ? 'opacity-50' : ''}`}>Specific Details (Optional)</h5>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isDetails1Open ? 'rotate-180' : ''} ${isDisabled ? 'opacity-50' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div
+                    id="subject1-details"
+                    className={`transition-all duration-300 ease-in-out overflow-hidden ${isDetails1Open ? 'max-h-96 pt-2' : 'max-h-0'}`}
+                >
+                    <div className="space-y-3">
+                        <SubjectDetailInput label="Costume / Appearance" value={subject1Details.costume} onChange={(val) => setSubject1Details(p => ({...p, costume: val}))} placeholder="e.g., Worn leather jacket" disabled={isDisabled} />
+                        <SubjectDetailInput label="Expression" value={subject1Details.subject_expression} onChange={(val) => setSubject1Details(p => ({...p, subject_expression: val}))} placeholder="e.g., A subtle, knowing smile" disabled={isDisabled} />
+                        <SubjectDetailInput label="Action" value={subject1Details.subject_action} onChange={(val) => setSubject1Details(p => ({...p, subject_action: val}))} placeholder="e.g., Adjusting their glasses" disabled={isDisabled} />
+                    </div>
+                </div>
+            </div>
         </CardContent>
       </Card>
       
       <Card>
-         <CardHeader title="2. Configure AI" description="Set the parameters for your creation." />
-         <CardContent className="space-y-4">
-            <GenderSelector selectedGender={gender} onGenderChange={setGender} />
-            <div>
-                <label htmlFor="style-select" className="block text-sm font-medium text-card-foreground mb-2">Artistic Style (for Randomize)</label>
-                <select
-                    id="style-select"
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value as ArtisticStyle)}
-                    className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+        <CardHeader title="2. Person 2 (Optional)" description="Add a second person to the scene." />
+        <CardContent className="space-y-4">
+            <ImageUploader onImageUpload={(img) => onImageUpload(img, 2)} uploadedImage={uploadedImage2} />
+            <GenderSelector selectedGender={gender2} onGenderChange={setGender2} />
+            <div className="pt-2 border-t border-border">
+                <button
+                    type="button"
+                    onClick={() => setIsDetails2Open(!isDetails2Open)}
+                    className="w-full flex justify-between items-center py-2"
+                    aria-expanded={isDetails2Open}
+                    aria-controls="subject2-details"
                     disabled={isDisabled}
                 >
-                    {styleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-            </div>
-            <div>
-                <label htmlFor="text-model-select" className="block text-sm font-medium text-card-foreground mb-2">Prompt Generation Model</label>
-                <select
-                    id="text-model-select"
-                    value={textModel}
-                    onChange={(e) => setTextModel(e.target.value as TextModel)}
-                    className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
-                    disabled={isDisabled}
+                    <h5 className={`text-sm font-semibold text-card-foreground ${isDisabled ? 'opacity-50' : ''}`}>Specific Details (Optional)</h5>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isDetails2Open ? 'rotate-180' : ''} ${isDisabled ? 'opacity-50' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div
+                    id="subject2-details"
+                    className={`transition-all duration-300 ease-in-out overflow-hidden ${isDetails2Open ? 'max-h-96 pt-2' : 'max-h-0'}`}
                 >
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                </select>
-            </div>
-            <SettingButtonGroup 
-                label="Number of Images" 
-                options={[ { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' }, { value: '4', label: '4' } ]} 
-                selectedValue={String(numImages)} 
-                onSelect={(value) => setNumImages(Number(value) as 1 | 2 | 3 | 4)}
-                disabled={isJsonOnly || isDisabled}
-            />
-            <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between">
-                    <label htmlFor="json-only" className="text-sm font-medium text-card-foreground">
-                        Just JSON prompt, no image generation
-                    </label>
-                    <button
-                        id="json-only"
-                        type="button"
-                        role="switch"
-                        aria-checked={isJsonOnly}
-                        onClick={() => setIsJsonOnly(!isJsonOnly)}
-                        disabled={isDisabled}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${isDisabled ? 'opacity-50' : ''} ${
-                            isJsonOnly ? 'bg-primary' : 'bg-input'
-                        }`}
-                    >
-                        <span
-                            aria-hidden="true"
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                isJsonOnly ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                        />
-                    </button>
+                    <div className="space-y-3">
+                        <SubjectDetailInput label="Costume / Appearance" value={subject2Details.costume} onChange={(val) => setSubject2Details(p => ({...p, costume: val}))} placeholder="e.g., Elegant ball gown" disabled={isDisabled} />
+                        <SubjectDetailInput label="Expression" value={subject2Details.subject_expression} onChange={(val) => setSubject2Details(p => ({...p, subject_expression: val}))} placeholder="e.g., A look of surprise" disabled={isDisabled} />
+                        <SubjectDetailInput label="Action" value={subject2Details.subject_action} onChange={(val) => setSubject2Details(p => ({...p, subject_action: val}))} placeholder="e.g., Holding a glowing orb" disabled={isDisabled} />
+                    </div>
                 </div>
             </div>
-             <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between">
-                    <label htmlFor="remove-background" className="text-sm font-medium text-card-foreground">
-                        Remove Background
-                    </label>
-                    <button
-                        id="remove-background"
-                        type="button"
-                        role="switch"
-                        aria-checked={removeBackground}
-                        onClick={() => setRemoveBackground(!removeBackground)}
-                        disabled={isDisabled}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${isDisabled ? 'opacity-50' : ''} ${
-                            removeBackground ? 'bg-primary' : 'bg-input'
-                        }`}
-                    >
-                        <span
-                            aria-hidden="true"
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                removeBackground ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                        />
-                    </button>
-                </div>
-             </div>
-         </CardContent>
+        </CardContent>
       </Card>
       
-       <Card>
-         <CardHeader title="3. Generate" description="Create a custom prompt or let the AI surprise you." />
-         <CardFooter className="flex flex-col space-y-3">
-             <button type="button" onClick={() => setIsModalOpen(true)} disabled={isDisabled} className="w-full h-11 bg-secondary text-secondary-foreground hover:bg-muted disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
-              Create Custom Prompt
-            </button>
-            <button type="button" onClick={() => onGenerateRandom(gender, style, imagesToGenerate)} disabled={isDisabled} className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
-              {isDisabled ? 'Generating...' : 'Randomize & Create'}
-            </button>
-         </CardFooter>
-       </Card>
-
-      <CustomPromptModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onGenerate={handleGenerateFromModal}
-        initialDetails={customDetails}
-      />
+      <div className="space-y-6">
+          <Card>
+             <CardHeader title="3. Configure AI" description="Set parameters for your creation." />
+             <CardContent className="space-y-4">
+                <div>
+                    <label htmlFor="style-select" className="block text-sm font-medium text-card-foreground mb-2">Artistic Style (for Randomize)</label>
+                    <select
+                        id="style-select"
+                        value={style}
+                        onChange={(e) => setStyle(e.target.value as ArtisticStyle)}
+                        className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+                        disabled={isDisabled}
+                    >
+                        {styleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="text-model-select" className="block text-sm font-medium text-card-foreground mb-2">Prompt Generation Model</label>
+                    <select
+                        id="text-model-select"
+                        value={textModel}
+                        onChange={(e) => setTextModel(e.target.value as TextModel)}
+                        className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+                        disabled={isDisabled}
+                    >
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    </select>
+                </div>
+                <SettingButtonGroup 
+                    label="Number of Images" 
+                    options={[ { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' }, { value: '4', label: '4' } ]} 
+                    selectedValue={String(numImages)} 
+                    onSelect={(value) => setNumImages(Number(value) as 1 | 2 | 3 | 4)}
+                    disabled={isJsonOnly || isDisabled}
+                />
+                <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                        <label htmlFor="json-only" className="text-sm font-medium text-card-foreground">
+                            Just JSON prompt, no image generation
+                        </label>
+                        <button
+                            id="json-only"
+                            type="button"
+                            role="switch"
+                            aria-checked={isJsonOnly}
+                            onClick={() => setIsJsonOnly(!isJsonOnly)}
+                            disabled={isDisabled}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${isDisabled ? 'opacity-50' : ''} ${
+                                isJsonOnly ? 'bg-primary' : 'bg-input'
+                            }`}
+                        >
+                            <span
+                                aria-hidden="true"
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                    isJsonOnly ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                </div>
+                 <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                        <label htmlFor="remove-background" className="text-sm font-medium text-card-foreground">
+                            Remove Background
+                        </label>
+                        <button
+                            id="remove-background"
+                            type="button"
+                            role="switch"
+                            aria-checked={removeBackground}
+                            onClick={() => setRemoveBackground(!removeBackground)}
+                            disabled={isDisabled}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background ${isDisabled ? 'opacity-50' : ''} ${
+                                removeBackground ? 'bg-primary' : 'bg-input'
+                            }`}
+                        >
+                            <span
+                                aria-hidden="true"
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                    removeBackground ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                 </div>
+             </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader title="4. Generate" description="Let the AI surprise you." />
+            <CardFooter>
+               <button type="button" onClick={() => onGenerateRandom(gender1, uploadedImage2 ? gender2 : null, style, imagesToGenerate, subject1Details, subject2Details)} disabled={isDisabled} className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+                 {isDisabled ? 'Generating...' : 'Randomize & Create'}
+               </button>
+            </CardFooter>
+          </Card>
+      </div>
     </div>
   );
 };

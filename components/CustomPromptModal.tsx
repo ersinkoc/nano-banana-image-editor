@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import type { Prompt, PromptDetails } from '../types';
-import { customPromptSections, PromptOptionSection } from './promptOptions';
+import type { Prompt, PromptDetails, SubjectSpecificDetails } from '../types';
+import { sceneSections, subjectSections, PromptOptionSection } from './promptOptions';
 
 const createPromptFromDetails = (details: PromptDetails): string => {
-  const parts: string[] = [
-    'You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved.',
-  ];
+  const parts: string[] = [];
+
+  const baseInstruction = details.subject2
+    ? 'You will perform an image edit using the people from the provided photos as the main subjects (Subject 1 and Subject 2). Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved.'
+    : 'You will perform an image edit using the person from the provided photo as the main subject. Facial features can be adapted to the artistic style, but the core likeness and recognizable characteristics must be preserved.';
+  parts.push(baseInstruction);
 
   let sceneDescription = `Create a ${details.medium || 'scene'}`;
   if (details.genre) sceneDescription += ` in a ${details.genre.toLowerCase()} style`;
@@ -13,9 +16,21 @@ const createPromptFromDetails = (details: PromptDetails): string => {
   if (details.location) sceneDescription += ` taking place in ${details.location}`;
   parts.push(sceneDescription + '.');
 
-  if (details.costume) parts.push(`The subject is wearing a ${details.costume}.`);
-  if (details.subject_action) parts.push(`The subject is ${details.subject_action}.`);
-  if (details.subject_expression) parts.push(`Their expression is ${details.subject_expression}.`);
+  const describeSubject = (subject: SubjectSpecificDetails, subjectNum: 1 | 2): string[] => {
+      const subjectParts = [];
+      if (subject.costume) subjectParts.push(`Subject ${subjectNum} is wearing a ${subject.costume}.`);
+      if (subject.subject_action) subjectParts.push(`Subject ${subjectNum} is ${subject.subject_action}.`);
+      if (subject.subject_expression) subjectParts.push(`Their expression is ${subject.subject_expression}.`);
+      return subjectParts;
+  }
+  
+  if (details.subject1) {
+    parts.push(...describeSubject(details.subject1, 1));
+  }
+  if (details.subject2) {
+    parts.push(...describeSubject(details.subject2, 2));
+  }
+  
   if (details.lighting.length > 0) parts.push(`The lighting is ${details.lighting.join(' and ')}.`);
   if (details.color_palette.length > 0) parts.push(`The color palette consists of ${details.color_palette.join(', ')} tones.`);
   if (details.camera_angle) parts.push(`Use a ${details.camera_angle.toLowerCase()} camera angle.`);
@@ -48,18 +63,18 @@ const OptionButton: React.FC<{
 
 const Section: React.FC<{
   section: PromptOptionSection;
-  details: PromptDetails;
-  onSingleSelect: (key: keyof PromptDetails, value: string) => void;
-  onMultiSelect: (key: keyof PromptDetails, value: string) => void;
-  onTextChange: (key: keyof PromptDetails, value: string) => void;
-}> = ({ section, details, onSingleSelect, onMultiSelect, onTextChange }) => {
+  value: string | string[];
+  onSingleSelect: (key: string, value: string) => void;
+  onMultiSelect: (key: string, value: string) => void;
+  onTextChange: (key: string, value: string) => void;
+}> = ({ section, value, onSingleSelect, onMultiSelect, onTextChange }) => {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-muted-foreground">{section.title}</h3>
       {section.type === 'text' && (
         <input
           type="text"
-          value={details[section.key] as string}
+          value={value as string}
           onChange={(e) => onTextChange(section.key, e.target.value)}
           className="h-10 block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
           placeholder={section.placeholder}
@@ -70,7 +85,7 @@ const Section: React.FC<{
           <OptionButton
             key={opt}
             label={opt}
-            isSelected={(details[section.key] as string) === opt}
+            isSelected={(value as string) === opt}
             onClick={() => onSingleSelect(section.key, opt)}
           />
         ))}
@@ -78,7 +93,7 @@ const Section: React.FC<{
           <OptionButton
             key={opt}
             label={opt}
-            isSelected={(details[section.key] as string[]).includes(opt)}
+            isSelected={(value as string[]).includes(opt)}
             onClick={() => onMultiSelect(section.key, opt)}
           />
         ))}
@@ -95,13 +110,19 @@ interface CustomPromptModalProps {
   initialDetails: PromptDetails;
 }
 
+const initialSubjectDetails: SubjectSpecificDetails = { costume: '', subject_action: '', subject_expression: '' };
+
 export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, onClose, onGenerate, initialDetails }) => {
   const [details, setDetails] = useState<PromptDetails>(initialDetails);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setDetails(initialDetails);
+        // Ensure subject1 and subject2 are initialized properly
+        const newDetails = { ...initialDetails };
+        if (!newDetails.subject1) newDetails.subject1 = { ...initialSubjectDetails };
+        if (!newDetails.subject2) newDetails.subject2 = { ...initialSubjectDetails };
+        setDetails(newDetails);
     }
   }, [isOpen, initialDetails]);
 
@@ -119,20 +140,19 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
 
   if (!isOpen) return null;
 
-  const handleSingleSelect = (key: keyof PromptDetails, value: string) => {
-    const currentValue = details[key] as string;
-    setDetails(prev => ({ ...prev, [key]: currentValue === value ? '' : value }));
-  };
-
-  const handleMultiSelect = (key: keyof PromptDetails, value: string) => {
-    const currentValues = details[key] as string[];
-    const newValues = currentValues.includes(value) ? currentValues.filter(v => v !== value) : [...currentValues, value];
-    setDetails(prev => ({ ...prev, [key]: newValues }));
-  };
-  
-  const handleTextChange = (key: keyof PromptDetails, value: string) => {
-    setDetails(prev => ({ ...prev, [key]: value }));
+  const handleSceneChange = (key: string, value: string | string[]) => {
+      setDetails(prev => ({ ...prev, [key]: value }));
   }
+  
+  const handleSubjectChange = (subjectNum: 'subject1' | 'subject2', key: string, value: string) => {
+    setDetails(prev => ({
+        ...prev,
+        [subjectNum]: {
+            ...prev[subjectNum],
+            [key]: value
+        }
+    }))
+  };
 
   const handleNegativePromptChange = (type: 'exclude_visuals' | 'exclude_styles', value: string) => {
     const items = value.split(',').map(s => s.trim()).filter(Boolean);
@@ -146,10 +166,18 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
   };
 
   const handleSubmit = () => {
-    const customPrompt: Prompt = { prompt: generatedPrompt, details };
+    const finalDetails = { ...details };
+    // If subject 2 details are all empty, remove it from the final object
+    if (details.subject2 && !details.subject2.costume && !details.subject2.subject_action && !details.subject2.subject_expression) {
+        delete finalDetails.subject2;
+    }
+    const finalPromptText = createPromptFromDetails(finalDetails);
+    const customPrompt: Prompt = { prompt: finalPromptText, details: finalDetails };
     onGenerate(customPrompt);
     onClose();
   };
+  
+  const [activeTab, setActiveTab] = useState<'scene' | 'subject1' | 'subject2'>('scene');
 
   return (
     <div
@@ -160,7 +188,7 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
         className="bg-card rounded-lg border border-border shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <header className="flex justify-between items-center p-4 sm:p-6 border-b border-border">
+        <header className="flex-shrink-0 flex justify-between items-center p-4 sm:p-6 border-b border-border">
           <div>
             <h2 className="text-xl font-bold text-card-foreground">Create a Detailed Custom Prompt</h2>
             <p className="text-sm text-muted-foreground">Craft the perfect scene by selecting from the options below.</p>
@@ -168,36 +196,73 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-2xl leading-none rounded-full h-8 w-8 flex items-center justify-center" aria-label="Close">&times;</button>
         </header>
 
-        <main className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 overflow-y-auto">
-          {customPromptSections.map(section => (
-            <Section 
-              key={section.key} section={section} details={details}
-              onSingleSelect={handleSingleSelect} onMultiSelect={handleMultiSelect} onTextChange={handleTextChange}
-            />
-          ))}
-          <div className="space-y-3 md:col-span-1">
-            <h3 className="text-sm font-semibold text-muted-foreground">Exclude Visuals (Negative Prompt)</h3>
-            <textarea
-              value={details.negative_prompt?.exclude_visuals?.join(', ') || ''}
-              onChange={(e) => handleNegativePromptChange('exclude_visuals', e.target.value)}
-              rows={2}
-              className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
-              placeholder="e.g., text, watermark, ugly, tiling"
-            />
-          </div>
-          <div className="space-y-3 md:col-span-1">
-            <h3 className="text-sm font-semibold text-muted-foreground">Exclude Styles (Negative Prompt)</h3>
-            <textarea
-              value={details.negative_prompt?.exclude_styles?.join(', ') || ''}
-              onChange={(e) => handleNegativePromptChange('exclude_styles', e.target.value)}
-              rows={2}
-              className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
-              placeholder="e.g., cartoon, 3d render, anime"
-            />
-          </div>
+        <div className="border-b border-border px-4 sm:px-6">
+            <nav className="-mb-px flex space-x-6">
+                {(['scene', 'subject1', 'subject2'] as const).map(tab => (
+                    <button key={tab} onClick={() => setActiveTab(tab)}
+                        className={`whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm focus:outline-none ${
+                            activeTab === tab 
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                        }`}
+                    >
+                        {tab === 'scene' ? 'Scene Details' : tab === 'subject1' ? 'Person 1' : 'Person 2'}
+                    </button>
+                ))}
+            </nav>
+        </div>
+
+        <main className="p-4 sm:p-6 overflow-y-auto flex-grow">
+            <div className={`${activeTab === 'scene' ? 'block' : 'hidden'} space-y-6`}>
+                {sceneSections.map(section => (
+                    <Section 
+                      key={section.key} section={section}
+                      value={details[section.key as keyof PromptDetails] as string | string[]}
+                      onSingleSelect={(key, value) => handleSceneChange(key, (details[key as keyof PromptDetails] as string) === value ? '' : value)}
+                      onMultiSelect={(key, value) => {
+                          const current = details[key as keyof PromptDetails] as string[];
+                          const newArr = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+                          handleSceneChange(key, newArr);
+                      }}
+                      onTextChange={handleSceneChange}
+                    />
+                ))}
+            </div>
+            {(['subject1', 'subject2'] as const).map(subjectKey => (
+                 <div key={subjectKey} className={`${activeTab === subjectKey ? 'block' : 'hidden'} space-y-6`}>
+                    {subjectSections.map(section => (
+                        <Section
+                            key={section.key} section={section}
+                            value={details[subjectKey]![section.key as keyof SubjectSpecificDetails]}
+                            onSingleSelect={() => {}} onMultiSelect={() => {}}
+                            onTextChange={(key, value) => handleSubjectChange(subjectKey, key, value)}
+                        />
+                    ))}
+                 </div>
+            ))}
+             <div className="space-y-3 mt-6">
+                <h3 className="text-sm font-semibold text-muted-foreground">Exclude Visuals (Negative Prompt)</h3>
+                <textarea
+                  value={details.negative_prompt?.exclude_visuals?.join(', ') || ''}
+                  onChange={(e) => handleNegativePromptChange('exclude_visuals', e.target.value)}
+                  rows={2}
+                  className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+                  placeholder="e.g., text, watermark, ugly, tiling"
+                />
+              </div>
+              <div className="space-y-3 mt-6">
+                <h3 className="text-sm font-semibold text-muted-foreground">Exclude Styles (Negative Prompt)</h3>
+                <textarea
+                  value={details.negative_prompt?.exclude_styles?.join(', ') || ''}
+                  onChange={(e) => handleNegativePromptChange('exclude_styles', e.target.value)}
+                  rows={2}
+                  className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+                  placeholder="e.g., cartoon, 3d render, anime"
+                />
+              </div>
         </main>
         
-        <footer className="p-4 sm:p-6 mt-auto border-t border-border bg-muted/50 space-y-3">
+        <footer className="flex-shrink-0 p-4 sm:p-6 mt-auto border-t border-border bg-muted/50 space-y-3">
           <div>
               <label htmlFor="finalPrompt" className="block text-sm font-medium text-card-foreground">Final Prompt (Editable)</label>
               <textarea

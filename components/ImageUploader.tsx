@@ -3,6 +3,7 @@ import type { ImageData } from '../types';
 
 interface ImageUploaderProps {
   onImageUpload: (imageData: ImageData | null) => void;
+  uploadedImage: ImageData | null;
 }
 
 const MAX_FILE_SIZE_MB = 4;
@@ -34,8 +35,7 @@ const fileToData = (file: File, onProgress: (progress: number) => void): Promise
     });
 };
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
-  const [preview, setPreview] = useState<string | null>(null);
+export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload, uploadedImage }) => {
   const [progress, setProgress] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,7 +45,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
        if (file.size > MAX_FILE_SIZE_BYTES) {
         alert(`File is too large. Please select a file smaller than ${MAX_FILE_SIZE_MB}MB.`);
         onImageUpload(null);
-        setPreview(null);
         if(fileInputRef.current) {
             fileInputRef.current.value = "";
         }
@@ -55,15 +54,17 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
       setProgress(0);
       try {
         const imageData = await fileToData(file, (p) => setProgress(p));
-        setPreview(imageData.dataUrl);
         onImageUpload(imageData);
       } catch (error) {
         console.error("Error processing file:", error);
         alert("There was an error processing your image. It might be corrupted. Please try another one.");
-        setPreview(null);
         onImageUpload(null);
       } finally {
         setProgress(null);
+        // FIX: Clear the file input value to allow re-uploading the same file
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
     }
   };
@@ -82,11 +83,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) =
           onClick={handleButtonClick}
           style={{ cursor: progress !== null ? 'default' : 'pointer' }}
         >
-        {preview ? (
-            <img src={preview} alt="Preview" className="object-contain h-full w-full rounded-md" />
+        {uploadedImage ? (
+            <img src={uploadedImage.dataUrl} alt="Preview" className="object-contain h-full w-full rounded-md" />
         ) : (
             <div className="text-center text-muted-foreground p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 opacity-50 transition-colors group-hover:text-primary"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M20.4 14.5L16 10 4 20"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-10 w-10 opacity-50 transition-colors group-hover:text-primary"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M20.4 14.5L16 10 4 20"></path></svg>
                 <p className="mt-2 text-sm font-semibold">Click to upload photo</p>
                 <p className="text-xs">PNG, JPG or WEBP (max {MAX_FILE_SIZE_MB}MB)</p>
             </div>
