@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import type { Gender, ImageData, ArtisticStyle, TextModel, SubjectSpecificDetails } from '../types';
+import type { Gender, ImageData, ArtisticStyle, TextModel, SubjectSpecificDetails, ImageModel, NegativePrompt } from '../types';
 import { ImageUploader } from './ImageUploader';
 import { GenderSelector } from './GenderSelector';
 
@@ -10,7 +11,9 @@ interface PromptCustomizerProps {
     style: ArtisticStyle,
     numImages: number,
     subject1Details: SubjectSpecificDetails,
-    subject2Details: SubjectSpecificDetails
+    subject2Details: SubjectSpecificDetails,
+    negativePrompt: NegativePrompt,
+    cameraAngle: string
   ) => void;
   onImageUpload: (imageData: ImageData | null, personIndex: 1 | 2) => void;
   uploadedImage1: ImageData | null;
@@ -24,6 +27,8 @@ interface PromptCustomizerProps {
   setRemoveBackground: (remove: boolean) => void;
   textModel: TextModel;
   setTextModel: (model: TextModel) => void;
+  imageModel: ImageModel;
+  setImageModel: (model: ImageModel) => void;
 }
 
 const SettingButtonGroup: React.FC<{
@@ -75,6 +80,26 @@ const SubjectDetailInput: React.FC<{
     </div>
 );
 
+const NegativePromptInput: React.FC<{
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    disabled?: boolean;
+}> = ({ label, value, onChange, placeholder, disabled }) => (
+    <div className="space-y-1">
+        <label className={`text-xs font-medium text-muted-foreground ${disabled ? 'opacity-50' : ''}`}>{label}</label>
+        <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={disabled}
+            rows={2}
+            className="w-full bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2 resize-none"
+        />
+    </div>
+);
+
 
 const Card: React.FC<{children: React.ReactNode, className?: string}> = ({children, className}) => (
     <div className={`bg-card border border-border rounded-lg shadow-sm ${className}`}>
@@ -97,9 +122,8 @@ const CardFooter: React.FC<{children: React.ReactNode, className?: string}> = ({
     <div className={`p-4 sm:p-5 border-t border-border ${className}`}>{children}</div>
 );
 
-// Fix: Moved styleOptions outside the component to prevent re-creation and re-sorting on every render.
-// The explicit type annotation helps TypeScript validate the string literals against the ArtisticStyle type, resolving the type error.
 const allStyleOptions: { value: ArtisticStyle; label: string }[] = [
+    { value: 'Cinematic Photorealism', label: 'Cinematic Photorealism (Ultra Realistic)' },
     { value: 'Realism', label: 'Realism' },
     { value: 'Artistic', label: 'Artistic (Random)' },
     { value: 'Abstract Expressionism', label: 'Abstract Expressionism' },
@@ -259,27 +283,62 @@ const allStyleOptions: { value: ArtisticStyle; label: string }[] = [
   ];
 
 const styleOptions = [...allStyleOptions].sort((a, b) => {
-    if (a.value === 'Realism' || a.value === 'Artistic') return -1;
-    if (b.value === 'Realism' || b.value === 'Artistic') return 1;
+    if (a.value === 'Cinematic Photorealism') return -1;
+    if (b.value === 'Cinematic Photorealism') return 1;
+    if (a.value === 'Realism') return -1;
+    if (b.value === 'Realism') return 1;
+    if (a.value === 'Artistic') return -1;
+    if (b.value === 'Artistic') return 1;
     return a.label.localeCompare(b.label);
 });
+
+const cameraAngleOptions = [
+    { value: 'None', label: 'Random (AI Decides)' },
+    { value: 'Low-Angle Shot', label: 'Low-Angle Shot' },
+    { value: 'High-Angle Shot', label: 'High-Angle Shot' },
+    { value: 'Dutch Angle', label: 'Dutch Angle' },
+    { value: 'Wide Shot', label: 'Wide Shot' },
+    { value: 'Close-Up', label: 'Close-Up' },
+    { value: 'Point of View (POV)', label: 'Point of View (POV)' },
+];
 
 
 export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({ 
     onGenerateRandom, onImageUpload, uploadedImage1, uploadedImage2, isDisabled,
     numImages, setNumImages, isJsonOnly, setIsJsonOnly,
     removeBackground, setRemoveBackground,
-    textModel, setTextModel
+    textModel, setTextModel,
+    imageModel, setImageModel
 }) => {
   const [gender1, setGender1] = useState<Gender>('unspecified');
   const [gender2, setGender2] = useState<Gender>('unspecified');
-  const [style, setStyle] = useState<ArtisticStyle>('Realism');
+  const [style, setStyle] = useState<ArtisticStyle>('Cinematic Photorealism');
   const [subject1Details, setSubject1Details] = useState<SubjectSpecificDetails>({ costume: '', subject_expression: '', subject_action: '' });
   const [subject2Details, setSubject2Details] = useState<SubjectSpecificDetails>({ costume: '', subject_expression: '', subject_action: '' });
+  
+  const [cameraAngle, setCameraAngle] = useState('None');
+  
+  const [negVisuals, setNegVisuals] = useState('');
+  const [negStyles, setNegStyles] = useState('');
+  const [negColors, setNegColors] = useState('');
+  const [negObjects, setNegObjects] = useState('');
+
   const [isDetails1Open, setIsDetails1Open] = useState(false);
   const [isDetails2Open, setIsDetails2Open] = useState(false);
+  const [isSceneDetailsOpen, setIsSceneDetailsOpen] = useState(false);
+  const [isNegativePromptOpen, setIsNegativePromptOpen] = useState(false);
   
   const imagesToGenerate = isJsonOnly ? 0 : numImages;
+
+  const handleGenerate = () => {
+      const negativePrompt: NegativePrompt = {
+          exclude_visuals: negVisuals.split(',').map(s => s.trim()).filter(Boolean),
+          exclude_styles: negStyles.split(',').map(s => s.trim()).filter(Boolean),
+          exclude_colors: negColors.split(',').map(s => s.trim()).filter(Boolean),
+          exclude_objects: negObjects.split(',').map(s => s.trim()).filter(Boolean),
+      };
+      onGenerateRandom(gender1, uploadedImage2 ? gender2 : null, style, imagesToGenerate, subject1Details, subject2Details, negativePrompt, cameraAngle);
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -370,10 +429,24 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                         className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
                         disabled={isDisabled}
                     >
+                        <option value="gemini-3-pro-preview">Gemini 3.0 Pro</option>
                         <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
                         <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                     </select>
                 </div>
+                 <div>
+                     <label htmlFor="image-model-select" className="block text-sm font-medium text-card-foreground mb-2">Image Generation Model</label>
+                     <select
+                         id="image-model-select"
+                         value={imageModel}
+                         onChange={(e) => setImageModel(e.target.value as ImageModel)}
+                         className="w-full h-10 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+                         disabled={isDisabled}
+                     >
+                         <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image (Fast)</option>
+                         <option value="gemini-3-pro-image-preview">Gemini 3.0 Pro Image (High Quality)</option>
+                     </select>
+                 </div>
                 <SettingButtonGroup 
                     label="Number of Images" 
                     options={[ { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' }, { value: '4', label: '4' } ]} 
@@ -431,13 +504,73 @@ export const PromptCustomizer: React.FC<PromptCustomizerProps> = ({
                         </button>
                     </div>
                  </div>
+
+                <div className="pt-2 border-t border-border mt-4">
+                    <button
+                        type="button"
+                        onClick={() => setIsSceneDetailsOpen(!isSceneDetailsOpen)}
+                        className="w-full flex justify-between items-center py-2"
+                        aria-expanded={isSceneDetailsOpen}
+                        aria-controls="scene-details"
+                        disabled={isDisabled}
+                    >
+                        <h5 className={`text-sm font-semibold text-card-foreground ${isDisabled ? 'opacity-50' : ''}`}>Scene Details (Optional)</h5>
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isSceneDetailsOpen ? 'rotate-180' : ''} ${isDisabled ? 'opacity-50' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div
+                        id="scene-details"
+                        className={`transition-all duration-300 ease-in-out overflow-hidden ${isSceneDetailsOpen ? 'max-h-96 pt-2' : 'max-h-0'}`}
+                    >
+                         <div className="space-y-3">
+                            <div>
+                                <label htmlFor="camera-angle-select" className="block text-xs font-medium text-muted-foreground mb-1">Camera Angle</label>
+                                <select
+                                    id="camera-angle-select"
+                                    value={cameraAngle}
+                                    onChange={(e) => setCameraAngle(e.target.value)}
+                                    className="w-full h-9 bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm px-3 py-2"
+                                    disabled={isDisabled}
+                                >
+                                    {cameraAngleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                            </div>
+                         </div>
+                    </div>
+                </div>
+
+                <div className="pt-2 border-t border-border mt-4">
+                    <button
+                        type="button"
+                        onClick={() => setIsNegativePromptOpen(!isNegativePromptOpen)}
+                        className="w-full flex justify-between items-center py-2"
+                        aria-expanded={isNegativePromptOpen}
+                        aria-controls="negative-prompt-details"
+                        disabled={isDisabled}
+                    >
+                        <h5 className={`text-sm font-semibold text-card-foreground ${isDisabled ? 'opacity-50' : ''}`}>Negative Prompt (Exclusions)</h5>
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isNegativePromptOpen ? 'rotate-180' : ''} ${isDisabled ? 'opacity-50' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <div
+                        id="negative-prompt-details"
+                        className={`transition-all duration-300 ease-in-out overflow-hidden ${isNegativePromptOpen ? 'max-h-[500px] pt-2' : 'max-h-0'}`}
+                    >
+                        <div className="space-y-3">
+                             <p className="text-xs text-muted-foreground">Specify elements you want to STRICTLY avoid in the generated image.</p>
+                             <NegativePromptInput label="Exclude Visuals (e.g., text, blur, watermark)" value={negVisuals} onChange={setNegVisuals} placeholder="e.g., ugly, blurry, text" disabled={isDisabled} />
+                             <NegativePromptInput label="Exclude Styles (e.g., cartoon, 3d, anime)" value={negStyles} onChange={setNegStyles} placeholder="e.g., cartoon, sketch" disabled={isDisabled} />
+                             <NegativePromptInput label="Exclude Colors" value={negColors} onChange={setNegColors} placeholder="e.g., red, neon, mud" disabled={isDisabled} />
+                             <NegativePromptInput label="Exclude Objects" value={negObjects} onChange={setNegObjects} placeholder="e.g., cars, trees, hats" disabled={isDisabled} />
+                        </div>
+                    </div>
+                </div>
+
              </CardContent>
           </Card>
           
           <Card>
             <CardHeader title="4. Generate" description="Let the AI surprise you." />
             <CardFooter>
-               <button type="button" onClick={() => onGenerateRandom(gender1, uploadedImage2 ? gender2 : null, style, imagesToGenerate, subject1Details, subject2Details)} disabled={isDisabled} className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+               <button type="button" onClick={handleGenerate} disabled={isDisabled} className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed font-bold py-3 px-4 rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
                  {isDisabled ? 'Generating...' : 'Randomize & Create'}
                </button>
             </CardFooter>

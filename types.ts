@@ -1,6 +1,7 @@
+
 export type Gender = 'male' | 'female' | 'unspecified';
 export type ArtisticStyle = 
-  | 'Realism' | 'Artistic' | 'Abstract Expressionism' | 'Afrofuturism' | 'Airbrush' | 'Algorithmic Art' | 'Anaglyph 3D' | 'Anamorphic' | 'Ancient Egyptian Art' | 'Art Deco' | 'Art Nouveau' | 'ASCII Art' | 'Assemblage' | 'Aztec Art'
+  | 'Realism' | 'Cinematic Photorealism' | 'Artistic' | 'Abstract Expressionism' | 'Afrofuturism' | 'Airbrush' | 'Algorithmic Art' | 'Anaglyph 3D' | 'Anamorphic' | 'Ancient Egyptian Art' | 'Art Deco' | 'Art Nouveau' | 'ASCII Art' | 'Assemblage' | 'Aztec Art'
   | 'Baroque' | 'Bauhaus' | 'Biopunk' | 'Boro' | 'Botanical Illustration' | 'Brutalism' | 'Byzantine Art'
   | 'Caricature' | 'Celtic Art' | 'Chiaroscuro' | 'Chibi' | 'Cloisonnism' | 'Collage' | 'Constructivism' | 'Cross-hatching' | 'Cubist' | 'Cyanotype' | 'Cyberpunk'
   | 'Dadaism' | 'De Stijl' | 'Decoupage' | 'Demoscene' | 'Dieselpunk' | 'Didone' | 'Dot Painting (Aboriginal)' | 'Double Exposure'
@@ -31,6 +32,8 @@ export interface ImageData {
 export interface NegativePrompt {
   exclude_visuals: string[];
   exclude_styles: string[];
+  exclude_colors?: string[];
+  exclude_objects?: string[];
 }
 
 export interface SubjectSpecificDetails {
@@ -72,5 +75,5 @@ export interface DebugLog {
   data: unknown;
 }
 
-export type TextModel = 'gemini-2.5-pro' | 'gemini-2.5-flash';
-export type ImageModel = 'gemini-2.5-flash-image';
+export type TextModel = 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'gemini-3-pro-preview';
+export type ImageModel = 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview';

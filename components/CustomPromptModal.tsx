@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { Prompt, PromptDetails, SubjectSpecificDetails } from '../types';
 import { sceneSections, subjectSections, PromptOptionSection } from './promptOptions';
@@ -38,6 +39,20 @@ const createPromptFromDetails = (details: PromptDetails): string => {
 
   const overallFeeling = [...details.atmosphere, ...details.emotion];
   if (overallFeeling.length > 0) parts.push(`The overall feeling should be ${overallFeeling.join(' and ')}.`);
+
+  if (details.negative_prompt) {
+    const exclusions: string[] = [];
+    const { exclude_visuals, exclude_styles, exclude_colors, exclude_objects } = details.negative_prompt;
+    
+    if (exclude_visuals && exclude_visuals.length > 0) exclusions.push(...exclude_visuals);
+    if (exclude_styles && exclude_styles.length > 0) exclusions.push(...exclude_styles);
+    if (exclude_colors && exclude_colors.length > 0) exclusions.push(...exclude_colors);
+    if (exclude_objects && exclude_objects.length > 0) exclusions.push(...exclude_objects);
+
+    if (exclusions.length > 0) {
+        parts.push(`Strictly exclude the following: ${exclusions.join(', ')}.`);
+    }
+  }
 
   return parts.join(' ');
 };
@@ -115,6 +130,7 @@ const initialSubjectDetails: SubjectSpecificDetails = { costume: '', subject_act
 export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, onClose, onGenerate, initialDetails }) => {
   const [details, setDetails] = useState<PromptDetails>(initialDetails);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [activeTab, setActiveTab] = useState<'scene' | 'subject1' | 'subject2' | 'negative'>('scene');
 
   useEffect(() => {
     if (isOpen) {
@@ -154,7 +170,7 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
     }))
   };
 
-  const handleNegativePromptChange = (type: 'exclude_visuals' | 'exclude_styles', value: string) => {
+  const handleNegativePromptChange = (type: 'exclude_visuals' | 'exclude_styles' | 'exclude_colors' | 'exclude_objects', value: string) => {
     const items = value.split(',').map(s => s.trim()).filter(Boolean);
     setDetails(prev => ({
         ...prev,
@@ -176,8 +192,6 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
     onGenerate(customPrompt);
     onClose();
   };
-  
-  const [activeTab, setActiveTab] = useState<'scene' | 'subject1' | 'subject2'>('scene');
 
   return (
     <div
@@ -197,8 +211,8 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
         </header>
 
         <div className="border-b border-border px-4 sm:px-6">
-            <nav className="-mb-px flex space-x-6">
-                {(['scene', 'subject1', 'subject2'] as const).map(tab => (
+            <nav className="-mb-px flex space-x-6 overflow-x-auto">
+                {(['scene', 'subject1', 'subject2', 'negative'] as const).map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab)}
                         className={`whitespace-nowrap py-3 px-1 border-b-2 font-semibold text-sm focus:outline-none ${
                             activeTab === tab 
@@ -206,7 +220,7 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
                             : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                         }`}
                     >
-                        {tab === 'scene' ? 'Scene Details' : tab === 'subject1' ? 'Person 1' : 'Person 2'}
+                        {tab === 'scene' ? 'Scene Details' : tab === 'subject1' ? 'Person 1' : tab === 'subject2' ? 'Person 2' : 'Negative Prompt'}
                     </button>
                 ))}
             </nav>
@@ -240,26 +254,49 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
                     ))}
                  </div>
             ))}
-             <div className="space-y-3 mt-6">
-                <h3 className="text-sm font-semibold text-muted-foreground">Exclude Visuals (Negative Prompt)</h3>
-                <textarea
-                  value={details.negative_prompt?.exclude_visuals?.join(', ') || ''}
-                  onChange={(e) => handleNegativePromptChange('exclude_visuals', e.target.value)}
-                  rows={2}
-                  className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
-                  placeholder="e.g., text, watermark, ugly, tiling"
-                />
-              </div>
-              <div className="space-y-3 mt-6">
-                <h3 className="text-sm font-semibold text-muted-foreground">Exclude Styles (Negative Prompt)</h3>
-                <textarea
-                  value={details.negative_prompt?.exclude_styles?.join(', ') || ''}
-                  onChange={(e) => handleNegativePromptChange('exclude_styles', e.target.value)}
-                  rows={2}
-                  className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
-                  placeholder="e.g., cartoon, 3d render, anime"
-                />
-              </div>
+            <div className={`${activeTab === 'negative' ? 'block' : 'hidden'} space-y-6`}>
+                 <p className="text-sm text-muted-foreground">Specify elements or attributes you want to strictly exclude from the image generation.</p>
+                 <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Exclude Visuals</h3>
+                    <textarea
+                      value={details.negative_prompt?.exclude_visuals?.join(', ') || ''}
+                      onChange={(e) => handleNegativePromptChange('exclude_visuals', e.target.value)}
+                      rows={2}
+                      className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+                      placeholder="e.g., text, watermark, ugly, tiling, blur, distortion"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Exclude Styles</h3>
+                    <textarea
+                      value={details.negative_prompt?.exclude_styles?.join(', ') || ''}
+                      onChange={(e) => handleNegativePromptChange('exclude_styles', e.target.value)}
+                      rows={2}
+                      className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+                      placeholder="e.g., cartoon, 3d render, anime, sketch, drawing"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Exclude Colors</h3>
+                    <textarea
+                      value={details.negative_prompt?.exclude_colors?.join(', ') || ''}
+                      onChange={(e) => handleNegativePromptChange('exclude_colors', e.target.value)}
+                      rows={2}
+                      className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+                      placeholder="e.g., neon, bright red, muddy tones, black and white"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Exclude Objects</h3>
+                    <textarea
+                      value={details.negative_prompt?.exclude_objects?.join(', ') || ''}
+                      onChange={(e) => handleNegativePromptChange('exclude_objects', e.target.value)}
+                      rows={2}
+                      className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm text-foreground px-3 py-2 border"
+                      placeholder="e.g., cars, modern buildings, text, glasses, hats"
+                    />
+                  </div>
+            </div>
         </main>
         
         <footer className="flex-shrink-0 p-4 sm:p-6 mt-auto border-t border-border bg-muted/50 space-y-3">

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Preview } from './components/Preview';
 import { History } from './components/History';
@@ -7,7 +8,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { DebugContext } from './contexts/DebugContext';
 import { generateEditPrompt, editImageWithGemini, getApiUsage, resetApiUsage } from './services/geminiService';
 import * as googleDriveService from './services/googleDriveService';
-import type { Prompt, Gender, ImageData, DebugLog, ArtisticStyle, HistoryEntry, TextModel, ImageModel, SubjectSpecificDetails } from './types';
+import type { Prompt, Gender, ImageData, DebugLog, ArtisticStyle, HistoryEntry, TextModel, ImageModel, SubjectSpecificDetails, NegativePrompt } from './types';
 
 const SunIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
@@ -114,7 +115,7 @@ const ERROR_MAP: { keywords: string[], message: React.ReactNode | ((isUserKeyAct
 ];
 
 type FailedAction = 
-    | { type: 'random'; payload: { gender1: Gender, gender2: Gender | null; style: ArtisticStyle; numImages: number; subject1Details: SubjectSpecificDetails; subject2Details: SubjectSpecificDetails; } }
+    | { type: 'random'; payload: { gender1: Gender, gender2: Gender | null; style: ArtisticStyle; numImages: number; subject1Details: SubjectSpecificDetails; subject2Details: SubjectSpecificDetails; negativePrompt: NegativePrompt; cameraAngle: string; } }
     | { type: 'history'; payload: { promptToUse: Prompt; numImages: number } }
     | { type: 'retrySame'; payload: {} };
     
@@ -141,8 +142,8 @@ const App: React.FC = () => {
   const [lastFailedAction, setLastFailedAction] = useState<FailedAction | null>(null);
 
   // Model Selection State
-  const [textModel, setTextModel] = useState<TextModel>('gemini-2.5-pro');
-  const imageModel: ImageModel = 'gemini-2.5-flash-image';
+  const [textModel, setTextModel] = useState<TextModel>('gemini-3-pro-preview');
+  const [imageModel, setImageModel] = useState<ImageModel>('gemini-2.5-flash-image');
 
   // User API Key State
   const [userApiKey, setUserApiKey] = useState<string | null>(null);
@@ -272,7 +273,21 @@ const App: React.FC = () => {
     setError(finalError);
   };
 
-  const performImageEdit = useCallback(async (prompt: Prompt, quality: string, aspectRatio: string, numImages: number, removeBackground: boolean, imageModel: ImageModel) => {
+  const performImageEdit = useCallback(async (prompt: Prompt, quality: string, aspectRatio: string, numImages: number, removeBackground: boolean, selectedImageModel: ImageModel) => {
+    // Enforce API key for Gemini 3 Pro Image
+    if (selectedImageModel === 'gemini-3-pro-image-preview' && !userApiKey) {
+        setError(
+            <>
+                The <strong>Gemini 3 Pro Image</strong> model requires your own API key. Please add your key in the settings or switch to the Flash model.
+                <br />
+                <button onClick={() => setIsSettingsModalOpen(true)} className="mt-2 underline text-primary hover:text-primary/80">
+                    Open Settings
+                </button>
+            </>
+        );
+        return;
+    }
+
     setCurrentPrompt(prompt);
     
     let editedImageResults: string[] | null = null;
@@ -284,7 +299,7 @@ const App: React.FC = () => {
         const imageData1 = { base64: originalImage1.base64, mimeType: originalImage1.mimeType };
         const imageData2 = originalImage2 ? { base64: originalImage2.base64, mimeType: originalImage2.mimeType } : null;
 
-        const requestPayload = { imageData1: '...', imageData2: imageData2 ? '...' : null, prompt, quality, aspectRatio, numImages, removeBackground };
+        const requestPayload = { imageData1: '...', imageData2: imageData2 ? '...' : null, prompt, quality, aspectRatio, numImages, removeBackground, model: selectedImageModel };
         addLog('REQUEST', { endpoint: `editImageWithGemini (x${numImages})`, payload: requestPayload });
         
         const imagePromises = Array(numImages).fill(0).map(() => 
@@ -294,7 +309,7 @@ const App: React.FC = () => {
               prompt,
               quality,
               aspectRatio,
-              imageModel,
+              selectedImageModel,
               userApiKey,
               removeBackground,
             )
@@ -322,7 +337,9 @@ const App: React.FC = () => {
     style: ArtisticStyle,
     numImages: number,
     subject1Details: SubjectSpecificDetails,
-    subject2Details: SubjectSpecificDetails
+    subject2Details: SubjectSpecificDetails,
+    negativePrompt: NegativePrompt,
+    cameraAngle: string
   ) => {
       if (!originalImage1 && numImages > 0) {
           setError("Please upload at least the first image.");
@@ -338,13 +355,13 @@ const App: React.FC = () => {
       const aspectRatio = '1:1';
 
       try {
-          addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender1, gender2, quality, aspectRatio, style, textModel, subject1Details, subject2Details } });
-          const newPrompt = await generateEditPrompt(gender1, gender2, quality, aspectRatio, style, textModel, userApiKey, subject1Details, subject2Details);
+          addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender1, gender2, quality, aspectRatio, style, textModel, subject1Details, subject2Details, negativePrompt, cameraAngle } });
+          const newPrompt = await generateEditPrompt(gender1, gender2, quality, aspectRatio, style, textModel, userApiKey, subject1Details, subject2Details, negativePrompt, cameraAngle);
           addLog('RESPONSE', { endpoint: 'generateEditPrompt', prompt: newPrompt });
           await performImageEdit(newPrompt, quality, aspectRatio, numImages, removeBackground, imageModel);
       } catch(e) {
           handleGenericError(e, 'handleGenerateRandom');
-          setLastFailedAction({ type: 'random', payload: { gender1, gender2, style, numImages, subject1Details, subject2Details } });
+          setLastFailedAction({ type: 'random', payload: { gender1, gender2, style, numImages, subject1Details, subject2Details, negativePrompt, cameraAngle } });
       } finally {
           setIsGeneratingNewPrompt(false);
       }
@@ -412,7 +429,7 @@ const App: React.FC = () => {
 
           switch (type) {
               case 'random':
-                  handleGenerateRandom(payload.gender1, payload.gender2, payload.style, payload.numImages, payload.subject1Details, payload.subject2Details);
+                  handleGenerateRandom(payload.gender1, payload.gender2, payload.style, payload.numImages, payload.subject1Details, payload.subject2Details, payload.negativePrompt, payload.cameraAngle);
                   break;
               case 'history':
                   handleUseHistoryPrompt(payload.promptToUse, payload.numImages);
@@ -505,6 +522,8 @@ const App: React.FC = () => {
               setRemoveBackground={setRemoveBackground}
               textModel={textModel}
               setTextModel={setTextModel}
+              imageModel={imageModel}
+              setImageModel={setImageModel}
             />
 
             <div className="space-y-6">

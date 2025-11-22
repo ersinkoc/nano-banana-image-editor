@@ -1,6 +1,7 @@
+
 // FIX: Import GenerateContentResponse to properly type the return value from the Gemini API.
 import { GoogleGenAI, Modality, Type, GenerateContentResponse } from "@google/genai";
-import type { Prompt, ArtisticStyle, TextModel, ImageModel, Gender, SubjectSpecificDetails } from '../types';
+import type { Prompt, ArtisticStyle, TextModel, ImageModel, Gender, SubjectSpecificDetails, NegativePrompt } from '../types';
 
 const USAGE_STORAGE_KEY = 'apiUsageStats';
 
@@ -135,6 +136,14 @@ const promptSchema = {
                         exclude_styles: {
                             type: Type.ARRAY,
                             items: { type: Type.STRING }
+                        },
+                        exclude_colors: {
+                            type: Type.ARRAY,
+                            items: { type: Type.STRING }
+                        },
+                        exclude_objects: {
+                            type: Type.ARRAY,
+                            items: { type: Type.STRING }
                         }
                     },
                     required: ['exclude_visuals', 'exclude_styles']
@@ -172,7 +181,9 @@ const promptExamples = [
         },
         negative_prompt: {
           exclude_visuals: ["daylight", "clean streets", "smiling", "nature"],
-          exclude_styles: ["cartoon", "watercolor", "cute"]
+          exclude_styles: ["cartoon", "watercolor", "cute"],
+          exclude_colors: ["pastel", "warm"],
+          exclude_objects: ["animals"]
         }
       }
     },
@@ -214,13 +225,19 @@ const getPromptGenerationContent = (
     aspectRatio: string,
     style: ArtisticStyle,
     subject1Details?: Partial<SubjectSpecificDetails>,
-    subject2Details?: Partial<SubjectSpecificDetails>
+    subject2Details?: Partial<SubjectSpecificDetails>,
+    negativePromptOverrides?: NegativePrompt,
+    cameraAngle?: string
 ): string => {
     const promptParts: string[] = [];
     
     let styleInstruction: string;
     let genreConstraint = '';
     switch (style) {
+        case 'Cinematic Photorealism':
+            styleInstruction = `For this request, you MUST generate a concept for an Ultra-Photorealistic, Movie-Quality image. The result must look exactly like a frame from a high-budget blockbuster movie (IMAX quality). Focus on perfect lighting, skin texture details, 8k resolution, and realistic physics.`;
+            genreConstraint = `CRITICAL REQUIREMENT: The 'genre' field in the output JSON MUST be 'Cinematic Photorealism'. The 'prompt' description MUST include keywords like: 'photorealistic', '8k', 'cinematic lighting', 'highly detailed', 'shot on Arri Alexa', 'depth of field'.`;
+            break;
         case 'Artistic':
             styleInstruction = `For this request, lean towards more stylized, artistic, and non-photorealistic concepts like paintings, sketches, anime, or abstract art. Be creative and unpredictable with the medium.`;
             break;
@@ -245,6 +262,10 @@ const getPromptGenerationContent = (
     if (genreConstraint) {
         promptParts.push(genreConstraint);
     }
+
+    if (cameraAngle && cameraAngle !== 'None') {
+        promptParts.push(`CRITICAL REQUIREMENT: The 'camera_angle' field in the output JSON MUST be exactly '${cameraAngle}'.`);
+    }
     
     const hasDetails = (details?: Partial<SubjectSpecificDetails>): boolean => {
         if (!details) return false;
@@ -265,6 +286,19 @@ const getPromptGenerationContent = (
         if (subject2Details?.subject_expression) providedDetails.push(`expression must be exactly: '${subject2Details.subject_expression}'`);
         if (subject2Details?.subject_action) providedDetails.push(`action must be exactly: '${subject2Details.subject_action}'`);
         promptParts.push(`CRITICAL REQUIREMENT for Subject 2: You MUST use these specific details: ${providedDetails.join('; ')}. Fill in any missing details creatively but these are MANDATORY.`);
+    }
+
+    if (negativePromptOverrides) {
+        const { exclude_visuals, exclude_styles, exclude_colors, exclude_objects } = negativePromptOverrides;
+        const requirements: string[] = [];
+        if (exclude_visuals && exclude_visuals.length > 0) requirements.push(`visuals: [${exclude_visuals.join(', ')}]`);
+        if (exclude_styles && exclude_styles.length > 0) requirements.push(`styles: [${exclude_styles.join(', ')}]`);
+        if (exclude_colors && exclude_colors.length > 0) requirements.push(`colors: [${exclude_colors.join(', ')}]`);
+        if (exclude_objects && exclude_objects.length > 0) requirements.push(`objects: [${exclude_objects.join(', ')}]`);
+
+        if (requirements.length > 0) {
+            promptParts.push(`CRITICAL REQUIREMENT: The generated 'negative_prompt' MUST strictly include these specific exclusions: ${requirements.join('; ')}. You MUST incorporate these values into the respective arrays in the final JSON output. You may add other relevant exclusions as well.`);
+        }
     }
 
     promptParts.push(`The concept you generate MUST be suitable for a ${quality === 'high' ? 'high-quality, highly detailed' : 'standard quality'} image. CRITICAL: The composition must strictly adhere to a cinematic ${aspectRatio} aspect ratio.`);
@@ -293,7 +327,9 @@ const getPromptGenerationContent = (
         },
         negative_prompt: {
           exclude_visuals: ["Visuals to avoid"],
-          exclude_styles: ["Styles to avoid"]
+          exclude_styles: ["Styles to avoid"],
+          exclude_colors: ["Colors to avoid (optional)"],
+          exclude_objects: ["Specific objects to avoid (optional)"]
         }
       }
     };
@@ -326,13 +362,15 @@ export const generateEditPrompt = async (
     textModel: TextModel,
     apiKey?: string | null,
     subject1Details?: Partial<SubjectSpecificDetails>,
-    subject2Details?: Partial<SubjectSpecificDetails>
+    subject2Details?: Partial<SubjectSpecificDetails>,
+    negativePromptOverrides?: NegativePrompt,
+    cameraAngle?: string
 ): Promise<Prompt> => {
     const ai = getAiClient(apiKey);
     incrementApiUsage(!!apiKey); // Track API call
     const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
         model: textModel,
-        contents: getPromptGenerationContent(gender1, gender2, quality, aspectRatio, style, subject1Details, subject2Details),
+        contents: getPromptGenerationContent(gender1, gender2, quality, aspectRatio, style, subject1Details, subject2Details, negativePromptOverrides, cameraAngle),
         config: {
             systemInstruction: "You are a creative director specializing in generating imaginative and cinematic photo edit concepts. You must output your response as a valid JSON object.",
             responseMimeType: "application/json",
@@ -389,17 +427,39 @@ export const editImageWithGemini = async (
         instructionParts.push("First, perfectly remove the background from all subjects in the image, making it transparent. The subjects must be fully and cleanly isolated.");
     }
 
+    // Determine if the style requested is photorealistic. 
+    // If so, we must strictly preserve identity and avoid stylization.
+    const isPhotorealistic = 
+        prompt.details.genre === 'Cinematic Photorealism' || 
+        prompt.details.genre === 'Realism' || 
+        (prompt.details.genre && prompt.details.genre.includes('Photorealism'));
+
     if (imageData2) {
-        instructionParts.push("ABSOLUTELY CRITICAL: This prompt involves two people. Use the person from the FIRST uploaded image as Subject 1, and the person from the SECOND uploaded image as Subject 2. Your primary task is to STYLIZE their facial features to match the artistic style of the scene, BUT they MUST remain CLEARLY AND UNMISTAKABLY RECOGNIZABLE. Do not simply paste their faces. Instead, transform their unique features (eyes, nose, mouth, jawline) into the new style (e.g., if the style is 'caricature', render their faces as recognizable caricatures; if 'oil painting', render them in a painterly way). It is PARAMOUNT that the core likeness of BOTH individuals is preserved. Do not replace them with generic faces.");
+        instructionParts.push("ABSOLUTELY CRITICAL: This prompt involves two people. Use the person from the FIRST uploaded image as Subject 1, and the person from the SECOND uploaded image as Subject 2.");
+        
+        if (isPhotorealistic) {
+             instructionParts.push("This is a PHOTOREALISTIC edit. You MUST PRESERVE the facial identity of Subject 1 and Subject 2 with 100% fidelity. Do NOT stylize their faces. Do NOT turn them into cartoons, paintings, or caricatures. Keep the skin texture and human likeness exactly as provided in the source photos. Integrate these REAL people into the cinematic scene using lighting and composition only.");
+        } else {
+             instructionParts.push("Your primary task is to STYLIZE their facial features to match the artistic style of the scene. The final result must have facial features with 100% identical likeness to the reference images, ensuring they are CLEARLY AND UNMISTAKABLY RECOGNIZABLE. Do not simply paste their faces. Instead, transform their unique features (eyes, nose, mouth, jawline) into the new style (e.g., if the style is 'caricature', render their faces as recognizable caricatures; if 'oil painting', render them in a painterly way). It is PARAMOUNT that the core likeness of BOTH individuals is preserved. Do not replace them with generic faces.");
+        }
     } else {
-        instructionParts.push("ABSOLUTELY CRITICAL: Your primary task is to STYLIZE the subject's facial features to match the artistic style of the scene, BUT they MUST remain CLEARLY AND UNMISTAKABLY RECOGNIZABLE. Do not simply paste their face. Instead, transform their unique features (eyes, nose, mouth, jawline) into the new style (e.g., if the style is 'caricature', render their face as a recognizable caricature; if 'oil painting', render it in a painterly way). It is PARAMOUNT that the core likeness of the individual is preserved. Do not replace them with a generic face.");
+        if (isPhotorealistic) {
+             instructionParts.push("ABSOLUTELY CRITICAL: This is a PHOTOREALISTIC edit. You MUST PRESERVE the facial identity of the subject with 100% fidelity. Do NOT stylize their face. Do NOT turn them into a cartoon, painting, or caricature. Keep the skin texture and human likeness exactly as provided in the source photo. Integrate this REAL person into the cinematic scene using lighting and composition only.");
+        } else {
+             instructionParts.push("ABSOLUTELY CRITICAL: Your primary task is to STYLIZE the subject's facial features to match the artistic style of the scene. The final result must have facial features with 100% identical likeness to the reference image, ensuring they are CLEARLY AND UNMISTAKABLY RECOGNIZABLE. Do not simply paste their face. Instead, transform their unique features (eyes, nose, mouth, jawline) into the new style (e.g., if the style is 'caricature', render their face as a recognizable caricature; if 'oil painting', render it in a painterly way). It is PARAMOUNT that the core likeness of the individual is preserved. Do not replace them with a generic face.");
+        }
     }
     
     instructionParts.push(`Now, apply the following creative edit: ${prompt.prompt}`);
 
     const { negative_prompt } = prompt.details;
     if (negative_prompt) {
-        const allExclusions = [...(negative_prompt.exclude_visuals || []), ...(negative_prompt.exclude_styles || [])];
+        const allExclusions = [
+            ...(negative_prompt.exclude_visuals || []),
+            ...(negative_prompt.exclude_styles || []),
+            ...(negative_prompt.exclude_colors || []),
+            ...(negative_prompt.exclude_objects || [])
+        ];
         if (allExclusions.length > 0) {
             instructionParts.push(`--- NEGATIVE PROMPT: Strictly avoid the following elements and styles: ${allExclusions.join(', ')}.`);
         }

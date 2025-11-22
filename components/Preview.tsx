@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Prompt, SubjectSpecificDetails } from '../types';
 
@@ -360,7 +361,12 @@ const PromptDetailsDisplay: React.FC<{
                 )}
             </div>
 
-            {details.negative_prompt && (details.negative_prompt.exclude_visuals.length > 0 || details.negative_prompt.exclude_styles.length > 0) && (
+            {details.negative_prompt && (
+                details.negative_prompt.exclude_visuals.length > 0 || 
+                details.negative_prompt.exclude_styles.length > 0 ||
+                (details.negative_prompt.exclude_colors && details.negative_prompt.exclude_colors.length > 0) ||
+                (details.negative_prompt.exclude_objects && details.negative_prompt.exclude_objects.length > 0)
+            ) && (
                 <div className="p-4 sm:p-6 border-t border-border space-y-4">
                     {details.negative_prompt.exclude_visuals.length > 0 && (
                         <div>
@@ -379,6 +385,30 @@ const PromptDetailsDisplay: React.FC<{
                             <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Styles (Negative Prompt)</h4>
                             <div className="flex flex-wrap gap-2">
                                 {details.negative_prompt.exclude_styles.map((tag, index) => (
+                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {details.negative_prompt.exclude_colors && details.negative_prompt.exclude_colors.length > 0 && (
+                        <div>
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Colors (Negative Prompt)</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {details.negative_prompt.exclude_colors.map((tag, index) => (
+                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {details.negative_prompt.exclude_objects && details.negative_prompt.exclude_objects.length > 0 && (
+                        <div>
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Objects (Negative Prompt)</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {details.negative_prompt.exclude_objects.map((tag, index) => (
                                     <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
                                         {tag}
                                     </span>
