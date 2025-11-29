@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Prompt, SubjectSpecificDetails } from '../types';
+import type { Prompt } from '../types';
 
 interface PreviewProps {
   editedImages: string[] | null;
@@ -33,9 +32,12 @@ const LoadingSpinner: React.FC = () => {
     }, []);
 
     return (
-        <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center rounded-lg z-10 backdrop-blur-sm">
-            <div className="w-12 h-12 border-4 border-dashed rounded-full animate-spin border-primary"></div>
-            <p className="mt-4 text-sm font-semibold text-muted-foreground">{message}</p>
+        <div className="absolute inset-0 bg-background/50 flex flex-col items-center justify-center rounded-2xl z-10 backdrop-blur-md animate-fade-in">
+            <div className="relative w-16 h-16">
+                 <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+                 <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <p className="mt-6 text-sm font-bold text-foreground/80 tracking-wide animate-pulse">{message}</p>
         </div>
     );
 };
@@ -50,42 +52,11 @@ const ImageModal: React.FC<{
 }> = ({ images, currentIndex, onClose, onNext, onPrevious }) => {
     const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const isPanningRef = useRef(false);
-    const panStartRef = useRef({ x: 0, y: 0 });
 
-    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+    // Reset on image change
+    useEffect(() => { setTransform({ scale: 1, x: 0, y: 0 }); }, [currentIndex]);
 
-    const updateTransform = useCallback((newTransform: { scale: number, x: number, y: number }) => {
-        const { scale } = newTransform;
-        let { x, y } = newTransform;
-        
-        if (imageRef.current && containerRef.current) {
-            const { naturalWidth, naturalHeight } = imageRef.current;
-            const { clientWidth, clientHeight } = containerRef.current;
-            
-            const aspectRatio = naturalWidth / naturalHeight;
-            let displayWidth = clientWidth;
-            let displayHeight = displayWidth / aspectRatio;
-            if (displayHeight > clientHeight) {
-                displayHeight = clientHeight;
-                displayWidth = displayHeight * aspectRatio;
-            }
-
-            const max_x = Math.max(0, (displayWidth * scale - clientWidth) / 2) / scale;
-            const max_y = Math.max(0, (displayHeight * scale - clientHeight) / 2) / scale;
-
-            x = clamp(x, -max_x, max_x);
-            y = clamp(y, -max_y, max_y);
-        }
-
-        setTransform({ scale, x, y });
-    }, []);
-    
-    const handleReset = useCallback(() => setTransform({ scale: 1, x: 0, y: 0 }), []);
-
-    useEffect(() => { handleReset(); }, [currentIndex, handleReset]);
-
+    // Keyboard support
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -94,77 +65,42 @@ const ImageModal: React.FC<{
                 if (e.key === 'ArrowLeft') onPrevious();
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onClose, onNext, onPrevious, images.length]);
 
-
-    const handleWheel = (e: React.WheelEvent) => {
-        e.preventDefault();
-        const newScale = e.deltaY < 0 ? transform.scale * 1.1 : transform.scale / 1.1;
-        updateTransform({ ...transform, scale: clamp(newScale, 1, 10) });
+    const handleZoom = (direction: 'in' | 'out') => {
+        setTransform(prev => ({
+            ...prev,
+            scale: Math.max(1, Math.min(10, prev.scale * (direction === 'in' ? 1.5 : 0.75)))
+        }));
     };
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (transform.scale <= 1) return;
-        e.preventDefault();
-        isPanningRef.current = true;
-        panStartRef.current = { x: e.clientX - transform.x * transform.scale, y: e.clientY - transform.y * transform.scale };
-        if (imageRef.current) imageRef.current.style.cursor = 'grabbing';
-    };
-
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!isPanningRef.current) return;
-        e.preventDefault();
-        const newX = (e.clientX - panStartRef.current.x) / transform.scale;
-        const newY = (e.clientY - panStartRef.current.y) / transform.scale;
-        updateTransform({ ...transform, x: newX, y: newY });
-    };
-
-    const handleMouseUpOrLeave = () => {
-        isPanningRef.current = false;
-        if (imageRef.current) imageRef.current.style.cursor = transform.scale > 1 ? 'grab' : 'default';
-    };
-
-    const handleZoomIn = () => updateTransform({ ...transform, scale: clamp(transform.scale * 1.5, 1, 10) });
-    const handleZoomOut = () => updateTransform({ ...transform, scale: clamp(transform.scale / 1.5, 1, 10) });
 
     return (
         <div 
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in touch-none"
+          className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[100] p-4 animate-fade-in touch-none"
           onClick={onClose}
         >
+            <div className="absolute top-4 right-4 z-[102] flex gap-2">
+                 <a href={images[currentIndex]} download={`fotomaydonoz-${Date.now()}.png`} onClick={e => e.stopPropagation()} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                </a>
+                <button onClick={onClose} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors text-xl">
+                    &times;
+                </button>
+            </div>
+
             <div 
-              ref={containerRef}
-              className="relative w-full h-full flex items-center justify-center overflow-hidden"
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUpOrLeave}
-              onMouseLeave={handleMouseUpOrLeave}
-              onWheel={handleWheel}
+              className="relative w-full h-full flex items-center justify-center"
               onClick={(e) => e.stopPropagation()}
             >
-                <button 
-                  onClick={onClose}
-                  className="absolute top-2 right-2 text-white text-4xl hover:text-gray-300 transition-colors z-[52] rounded-full bg-black/50 h-9 w-9 flex items-center justify-center"
-                  aria-label="Close"
-                >&times;</button>
-                
                 {images.length > 1 && (
                     <>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onPrevious(); }}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-4xl hover:text-gray-300 transition-colors z-[52] rounded-full bg-black/50 h-12 w-12 flex items-center justify-center"
-                            aria-label="Previous image"
-                        >
-                            &#8249;
+                        <button onClick={(e) => { e.stopPropagation(); onPrevious(); }} className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors z-[102] p-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                         </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onNext(); }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-4xl hover:text-gray-300 transition-colors z-[52] rounded-full bg-black/50 h-12 w-12 flex items-center justify-center"
-                            aria-label="Next image"
-                        >
-                            &#8250;
+                        <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors z-[102] p-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                         </button>
                     </>
                 )}
@@ -172,16 +108,15 @@ const ImageModal: React.FC<{
                 <img 
                   ref={imageRef}
                   src={images[currentIndex]} 
-                  alt={`Edited variation ${currentIndex + 1}`} 
-                  className="max-w-full max-h-full object-contain transition-transform duration-100 ease-out rounded-lg shadow-2xl"
-                  style={{ transform: `scale(${transform.scale}) translate(${transform.x}px, ${transform.y}px)`, cursor: transform.scale > 1 ? 'grab' : 'default' }}
-                  onMouseDown={handleMouseDown}
+                  alt="Full screen view" 
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+                  style={{ transform: `scale(${transform.scale})` }}
                 />
             </div>
-             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 p-1.5 rounded-lg flex items-center gap-1 backdrop-blur-sm z-[51]">
-                <button title="Zoom Out" onClick={handleZoomOut} className="text-white h-8 w-8 rounded-md hover:bg-white/20 transition-colors text-xl font-bold flex items-center justify-center">-</button>
-                <button title="Reset View" onClick={handleReset} className="text-white h-8 px-4 rounded-md hover:bg-white/20 transition-colors text-sm">Reset</button>
-                <button title="Zoom In" onClick={handleZoomIn} className="text-white h-8 w-8 rounded-md hover:bg-white/20 transition-colors text-xl font-bold flex items-center justify-center">+</button>
+             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 p-2 rounded-full flex items-center gap-2 backdrop-blur-md z-[101] border border-white/10">
+                <button onClick={(e) => { e.stopPropagation(); handleZoom('out'); }} className="h-8 w-8 rounded-full hover:bg-white/20 text-white flex items-center justify-center font-bold text-xl">-</button>
+                <button onClick={(e) => { e.stopPropagation(); setTransform({scale: 1, x:0, y:0}); }} className="h-8 px-3 rounded-full hover:bg-white/20 text-white text-xs font-bold uppercase">Reset</button>
+                <button onClick={(e) => { e.stopPropagation(); handleZoom('in'); }} className="h-8 w-8 rounded-full hover:bg-white/20 text-white flex items-center justify-center font-bold text-xl">+</button>
             </div>
         </div>
     );
@@ -189,41 +124,28 @@ const ImageModal: React.FC<{
 
 const JsonViewer: React.FC<{ prompt: Prompt }> = ({ prompt }) => {
     const jsonString = JSON.stringify(prompt, null, 2);
-    const lines = jsonString.split('\n');
-    const [copyStatus, setCopyStatus] = useState('Copy');
+    const [copyStatus, setCopyStatus] = useState('Copy JSON');
 
     const handleCopy = useCallback(() => {
         navigator.clipboard.writeText(jsonString).then(() => {
             setCopyStatus('Copied!');
-            setTimeout(() => setCopyStatus('Copy'), 2000);
-        }, () => {
-            setCopyStatus('Failed!');
-            setTimeout(() => setCopyStatus('Copy'), 2000);
+            setTimeout(() => setCopyStatus('Copy JSON'), 2000);
         });
     }, [jsonString]);
 
     return (
-        <div className="w-full h-full bg-[#1e1e1e] text-white font-mono text-[13px] rounded-md overflow-hidden flex flex-col animate-fade-in">
-            <div className="flex justify-between items-center bg-gray-800/50 px-4 py-2 border-b border-gray-700">
-                <span className="text-gray-400">JSON Output</span>
+        <div className="w-full h-full bg-[#1e1e1e] text-blue-300 font-mono text-[13px] rounded-xl overflow-hidden flex flex-col animate-fade-in border border-white/10 shadow-inner">
+            <div className="flex justify-between items-center bg-black/40 px-4 py-2 border-b border-white/5">
+                <span className="text-gray-400 text-xs uppercase font-bold tracking-wider">Generated Prompt.json</span>
                 <button 
                     onClick={handleCopy}
-                    className="px-3 py-1 text-xs font-semibold rounded-md transition-colors bg-gray-600 hover:bg-gray-500 text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
                 >
                     {copyStatus}
                 </button>
             </div>
-            <div className="overflow-auto flex-grow">
-                <pre className="whitespace-pre h-full">
-                    <code className="block p-4">
-                        {lines.map((line, index) => (
-                            <div key={index} className="flex leading-relaxed">
-                                <span className="text-right text-gray-500 w-8 pr-4 select-none">{index + 1}</span>
-                                <span className="flex-1">{line.replace(/ /g, '\u00a0')}</span>
-                            </div>
-                        ))}
-                    </code>
-                </pre>
+            <div className="overflow-auto flex-grow p-4">
+                <pre className="whitespace-pre-wrap">{jsonString}</pre>
             </div>
         </div>
     );
@@ -233,9 +155,9 @@ const DetailItem: React.FC<{label: string; value: string | string[]}> = ({label,
     const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
     if (!displayValue) return null;
     return (
-         <div className="flex flex-col">
-            <span className="font-semibold text-muted-foreground capitalize">{label.replace(/_/g, ' ')}</span>
-            <span className="text-card-foreground">{displayValue}</span>
+         <div className="flex flex-col p-3 bg-secondary/30 rounded-lg border border-transparent hover:border-border/50 transition-colors">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 opacity-70">{label.replace(/_/g, ' ')}</span>
+            <span className="text-sm font-medium text-foreground">{displayValue}</span>
         </div>
     );
 };
@@ -252,20 +174,7 @@ const PromptDetailsDisplay: React.FC<{
     onRetryWithSamePrompt: () => void,
     isLoading: boolean,
 }> = ({ prompt, editedImages, onSaveToDrive, onSignIn, isSignedIn, isGapiReady, isSavingToDrive, isDriveConfigured, onRetryWithSamePrompt, isLoading }) => {
-    const [copyButtonText, setCopyButtonText] = useState('Copy JSON');
     const hasImages = editedImages && editedImages.length > 0;
-    
-    const handleCopy = () => {
-        navigator.clipboard.writeText(JSON.stringify(prompt, null, 2))
-            .then(() => {
-                setCopyButtonText('Copied!');
-                setTimeout(() => setCopyButtonText('Copy JSON'), 2000);
-            })
-            .catch(err => {
-                console.error('Failed to copy text: ', err);
-                alert('Failed to copy prompt.');
-            });
-    };
     
     const handleDriveClick = () => isSignedIn ? onSaveToDrive() : onSignIn();
     
@@ -289,54 +198,43 @@ const PromptDetailsDisplay: React.FC<{
         });
     };
 
-    const ButtonSpinner = () => (
-      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-    );
-
     const isAnyActionInProgress = isLoading || isSavingToDrive;
-    
     const { details } = prompt;
 
     return (
-        <div className="bg-card border border-border rounded-lg animate-fade-in">
-            <div className="p-4 sm:p-6 border-b border-border">
-                <div className="flex flex-wrap justify-between items-center gap-4">
-                    <h3 className="text-lg font-semibold text-card-foreground">Edit Details</h3>
-                    <div className="flex gap-2 flex-wrap">
-                        <button
-                            onClick={onRetryWithSamePrompt}
-                            disabled={isAnyActionInProgress}
-                            className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={hasImages ? "Generate a new set of images using the exact same prompt and settings." : "Generate images for the current JSON prompt. (Disable 'JSON only' switch first)"}
-                        >
-                            {isLoading ? 'Processing...' : (hasImages ? 'Regenerate' : 'Generate Images')}
-                        </button>
-                        
-                        <button onClick={handleCopy} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">{copyButtonText}</button>
-                        
-                        {hasImages && (
-                            <>
-                                {editedImages.length > 1 && (
-                                    <button onClick={handleDownloadAll} disabled={isAnyActionInProgress} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed">Download All</button>
-                                )}
-                                {isGapiReady && (
-                                   <button onClick={handleDriveClick} disabled={isAnyActionInProgress || !isDriveConfigured} className="px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background flex items-center justify-center">
-                                       {isSavingToDrive && <ButtonSpinner />}
-                                       {getDriveButtonText()}
-                                   </button>
-                                )}
-                            </>
-                        )}
-                    </div>
+        <div className="glass-card rounded-3xl animate-fade-in mt-6">
+            <div className="p-6 border-b border-border/40 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h3 className="text-lg font-bold text-card-foreground">Prompt Details</h3>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-1 italic max-w-lg opacity-80">"{prompt.prompt}"</p>
                 </div>
-                <p className="italic text-muted-foreground mt-4 text-sm">"{prompt.prompt}"</p>
+                <div className="flex gap-2 flex-wrap">
+                    <button
+                        onClick={onRetryWithSamePrompt}
+                        disabled={isAnyActionInProgress}
+                        className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all disabled:opacity-50"
+                    >
+                        {isLoading ? 'Wait...' : 'Regenerate'}
+                    </button>
+                    
+                    {hasImages && (
+                        <>
+                            {editedImages.length > 1 && (
+                                <button onClick={handleDownloadAll} disabled={isAnyActionInProgress} className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all disabled:opacity-50">Download All</button>
+                            )}
+                            {isGapiReady && (
+                                <button onClick={handleDriveClick} disabled={isAnyActionInProgress || !isDriveConfigured} className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 disabled:bg-muted disabled:text-muted-foreground flex items-center gap-2">
+                                    {isSavingToDrive && <div className="animate-spin h-3 w-3 border-2 border-white/50 border-t-white rounded-full"></div>}
+                                    {getDriveButtonText()}
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
             </div>
             
-            <div className="p-4 sm:p-6 text-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+            <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {Object.entries(details).map(([key, value]) => {
                         if (['subject1', 'subject2', 'negative_prompt'].includes(key)) return null;
                         return <DetailItem key={key} label={key} value={value as string | string[]} />
@@ -344,80 +242,48 @@ const PromptDetailsDisplay: React.FC<{
                 </div>
 
                 {details.subject1 && (
-                    <div className="mt-4 pt-4 border-t border-border">
-                        <h4 className="font-bold text-md text-card-foreground mb-2">Person 1 Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                    <div className="mt-6">
+                        <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary"></span> Person 1
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {Object.entries(details.subject1).map(([key, value]) => <DetailItem key={key} label={key} value={value} />)}
                         </div>
                     </div>
                 )}
                 {details.subject2 && (
-                    <div className="mt-4 pt-4 border-t border-border">
-                        <h4 className="font-bold text-md text-card-foreground mb-2">Person 2 Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                    <div className="mt-6">
+                        <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-2">
+                             <span className="w-1.5 h-1.5 rounded-full bg-primary"></span> Person 2
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {Object.entries(details.subject2).map(([key, value]) => <DetailItem key={key} label={key} value={value} />)}
                         </div>
                     </div>
                 )}
+                
+                {details.negative_prompt && (
+                     <div className="mt-6 pt-6 border-t border-border/40">
+                         <h4 className="text-xs font-bold text-destructive/80 uppercase tracking-wider mb-3">Negative Prompt Exclusions</h4>
+                         <div className="flex flex-wrap gap-2">
+                            {[
+                                ...(details.negative_prompt.exclude_visuals || []),
+                                ...(details.negative_prompt.exclude_styles || []),
+                                ...(details.negative_prompt.exclude_colors || []),
+                                ...(details.negative_prompt.exclude_objects || [])
+                            ].map((tag, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-destructive/10 text-destructive text-[10px] font-bold uppercase rounded-md border border-destructive/20">{tag}</span>
+                            ))}
+                            {[
+                                ...(details.negative_prompt.exclude_visuals || []),
+                                ...(details.negative_prompt.exclude_styles || []),
+                                ...(details.negative_prompt.exclude_colors || []),
+                                ...(details.negative_prompt.exclude_objects || [])
+                            ].length === 0 && <span className="text-xs text-muted-foreground italic">None specified.</span>}
+                         </div>
+                     </div>
+                )}
             </div>
-
-            {details.negative_prompt && (
-                details.negative_prompt.exclude_visuals.length > 0 || 
-                details.negative_prompt.exclude_styles.length > 0 ||
-                (details.negative_prompt.exclude_colors && details.negative_prompt.exclude_colors.length > 0) ||
-                (details.negative_prompt.exclude_objects && details.negative_prompt.exclude_objects.length > 0)
-            ) && (
-                <div className="p-4 sm:p-6 border-t border-border space-y-4">
-                    {details.negative_prompt.exclude_visuals.length > 0 && (
-                        <div>
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Visuals (Negative Prompt)</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {details.negative_prompt.exclude_visuals.map((tag, index) => (
-                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {details.negative_prompt.exclude_styles.length > 0 && (
-                        <div>
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Styles (Negative Prompt)</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {details.negative_prompt.exclude_styles.map((tag, index) => (
-                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {details.negative_prompt.exclude_colors && details.negative_prompt.exclude_colors.length > 0 && (
-                        <div>
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Colors (Negative Prompt)</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {details.negative_prompt.exclude_colors.map((tag, index) => (
-                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {details.negative_prompt.exclude_objects && details.negative_prompt.exclude_objects.length > 0 && (
-                        <div>
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-2">Exclude Objects (Negative Prompt)</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {details.negative_prompt.exclude_objects.map((tag, index) => (
-                                    <span key={index} className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-             )}
         </div>
     );
 };
@@ -438,67 +304,63 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
     }
   };
 
-  const GridImage: React.FC<{ src: string; onClick: () => void }> = ({ src, onClick }) => (
-    <div className="relative group aspect-square bg-muted rounded-md overflow-hidden">
-      <img src={src} alt="Edited variation" className="w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-        <button onClick={onClick} className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition" aria-label="Enlarge image">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
-        </button>
-        <a href={src} download={`fotomaydonoz-${new Date().getTime()}.png`} className="p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition" aria-label="Download image">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-        </a>
-      </div>
-    </div>
-  );
-  
-  const SingleImageView: React.FC<{ src: string; onClick: () => void; }> = ({ src, onClick }) => (
-    <div className="relative group w-full h-full animate-fade-in flex items-center justify-center">
-        <img src={src} alt="Edited result" className="max-w-full max-h-full object-contain rounded-lg" />
-        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={onClick} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Enlarge image">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" /></svg>
-            </button>
-            <a href={src} download={`fotomaydonoz-${new Date().getTime()}.png`} className="p-2.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition" aria-label="Download image">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            </a>
-        </div>
-    </div>
-);
-
   const hasImages = editedImages && editedImages.length > 0;
   const isJsonOnlyResult = !isLoading && !hasImages && prompt;
 
-  const getCardTitle = () => {
-    if (isLoading) return "Generating...";
-    if (isJsonOnlyResult) return "Generated JSON Prompt";
-    if (hasImages) return "Edited Results";
-    return "Output";
-  };
+  const SingleImageView: React.FC<{ src: string; onClick: () => void; }> = ({ src, onClick }) => (
+    <div className="relative group w-full h-full flex items-center justify-center animate-fade-in">
+        <img src={src} alt="Edited result" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-300 group-hover:scale-[1.01]" />
+        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={onClick} className="h-10 w-10 rounded-full bg-black/60 text-white backdrop-blur-md flex items-center justify-center hover:bg-primary transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/></svg>
+            </button>
+            <a href={src} download={`fotomaydonoz-${Date.now()}.png`} className="h-10 w-10 rounded-full bg-black/60 text-white backdrop-blur-md flex items-center justify-center hover:bg-primary transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            </a>
+        </div>
+    </div>
+  );
+
+  const GridImage: React.FC<{ src: string; onClick: () => void }> = ({ src, onClick }) => (
+    <div className="relative group aspect-square rounded-xl overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all">
+      <img src={src} alt="Edited variation" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
+        <button onClick={onClick} className="h-10 w-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-primary transition-colors">
+           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 15 6 6m-6-6v-4.8m0 4.8h-4.8"/></svg>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-        <div className="bg-card border border-border p-4 rounded-lg shadow-sm">
-            <h3 className="text-lg font-semibold text-center mb-4 text-card-foreground">{getCardTitle()}</h3>
-            <div className="relative aspect-square bg-muted/50 rounded-md flex items-center justify-center">
+        <div className="glass-card rounded-3xl p-6 min-h-[400px] flex flex-col items-center justify-center relative">
+            <h3 className="absolute top-6 left-6 text-sm font-bold uppercase tracking-widest text-muted-foreground opacity-70">
+                {isLoading ? "Generating..." : (hasImages ? "Output Results" : (isJsonOnlyResult ? "JSON Output" : "Preview"))}
+            </h3>
+            
+            <div className="w-full flex-grow flex items-center justify-center mt-6">
                 {isLoading && <LoadingSpinner />}
                 
                 {!isLoading && hasImages && (
                    editedImages.length > 1 ? (
-                      <div className="grid grid-cols-2 gap-2 w-full h-full p-2 animate-fade-in">
+                      <div className="grid grid-cols-2 gap-4 w-full h-full max-w-2xl animate-fade-in">
                           {editedImages.map((image, index) => <GridImage key={index} src={image} onClick={() => setModalImageIndex(index)} />)}
                       </div>
-                  ) : <SingleImageView src={editedImages[0]} onClick={() => setModalImageIndex(0)} />
+                  ) : <div className="h-[500px] w-full"><SingleImageView src={editedImages[0]} onClick={() => setModalImageIndex(0)} /></div>
                 )}
 
                 {isJsonOnlyResult && (
-                    <JsonViewer prompt={prompt} />
+                    <div className="h-[400px] w-full"><JsonViewer prompt={prompt} /></div>
                 )}
 
                 {!isLoading && !hasImages && !prompt && (
-                    <div className="text-muted-foreground text-center p-4">
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto h-12 w-12 opacity-50"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                         <p className="mt-2 text-sm">Your masterpiece will appear here</p>
+                    <div className="text-center p-8 max-w-md">
+                         <div className="mx-auto h-24 w-24 rounded-full bg-secondary/30 flex items-center justify-center mb-6 text-muted-foreground/30">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                         </div>
+                         <h2 className="text-xl font-bold text-foreground mb-2">Ready to Create?</h2>
+                         <p className="text-muted-foreground leading-relaxed">Upload a photo in the panel on the left, configure your style, and watch the AI transform it into art.</p>
                     </div>
                 )}
             </div>
@@ -511,13 +373,6 @@ export const Preview: React.FC<PreviewProps> = ({ editedImages, isLoading, promp
             isLoading={isLoading} 
             {...driveProps} 
         />}
-
-        {!prompt && !isLoading && (
-          <div className="bg-card border border-border rounded-lg p-8 text-center shadow-sm animate-fade-in">
-            <h2 className="text-2xl font-bold text-card-foreground mb-2">Welcome to Foto Maydonoz</h2>
-            <p className="text-muted-foreground max-w-md mx-auto">Upload a photo, customize your prompt, and let our AI transform it into a unique work of art.</p>
-          </div>
-        )}
         
         {modalImageIndex !== null && editedImages && (
             <ImageModal 

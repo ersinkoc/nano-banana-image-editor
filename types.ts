@@ -20,7 +20,8 @@ export type ArtisticStyle =
   | 'Sfumato' | 'Sgraffito' | 'Shibori' | 'Social Realism' | 'Sots Art' | 'Sound Art' | 'Stained Glass' | 'Steampunk' | 'Stippling' | 'Street Art' | 'Suprematism' | 'Surrealist' | 'Symbolism' | 'Synthetism' | 'Synthwave'
   | 'Tachisme' | 'Tattoo Art' | 'Technical Drawing' | 'Tenebrism' | 'Tiki Art' | 'Tribal Art' | 'Trompe-l\'œil'
   | 'Ukiyo-e' | 'Vaporwave' | 'Vector Art' | 'Verism' | 'Vintage Photo' | 'Vorticism' | 'Voxel Art'
-  | 'Wabi-sabi' | 'Whimsical' | 'Woodcut Print';
+  | 'Wabi-sabi' | 'Whimsical' | 'Woodcut Print'
+  | 'Watercolor Painting' | 'Oil Painting' | 'Charcoal Sketch' | 'Anime/Manga' | '3D Render' | 'Claymation' | 'Noir';
 
 
 export interface ImageData {

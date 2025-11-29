@@ -8,160 +8,105 @@ interface HistoryItemProps {
 
 const HistoryItem: React.FC<HistoryItemProps> = ({ item, onSelect }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [copyStatus, setCopyStatus] = useState('Copy JSON');
   const { prompt, image } = item;
 
-  const handleCopy = () => {
-    const jsonString = JSON.stringify(prompt, null, 2);
-    navigator.clipboard.writeText(jsonString).then(() => {
-        setCopyStatus('Copied!');
-        setTimeout(() => setCopyStatus('Copy JSON'), 2000);
-    }, () => {
-        setCopyStatus('Failed!');
-        setTimeout(() => setCopyStatus('Copy JSON'), 2000);
-    });
+  const copyPrompt = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(JSON.stringify(prompt, null, 2));
+      alert("JSON copied to clipboard");
   };
 
   return (
-    <div className="border border-border rounded-md bg-card transition-all duration-300">
-      <button
+    <div className={`border rounded-xl transition-all duration-300 overflow-hidden group ${isOpen ? 'bg-secondary/20 border-primary/30 shadow-lg' : 'bg-transparent border-border/50 hover:bg-secondary/10'}`}>
+      <div
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md transition-colors hover:bg-muted/50"
+        className="w-full text-left p-4 cursor-pointer flex items-center gap-4"
       >
-        <div className="flex items-center gap-4">
+        {/* Thumbnail */}
+        <div className="h-16 w-16 rounded-lg bg-secondary/50 flex-shrink-0 overflow-hidden border border-white/5 relative group-hover:border-primary/30 transition-colors">
             {image ? (
-               <img src={image} alt={prompt.details.genre} className="w-16 h-16 object-cover rounded-md shrink-0 bg-muted" />
+                <img src={image} alt="History thumbnail" className="h-full w-full object-cover" />
             ) : (
-              <div className="w-16 h-16 rounded-md shrink-0 bg-muted flex items-center justify-center" aria-label="No image preview available">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              </div>
+                <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                </div>
             )}
-            <div className="flex-grow overflow-hidden">
-                <p className="font-semibold text-card-foreground truncate">{prompt.details.genre} - {prompt.details.year}</p>
-                <p className="text-sm text-muted-foreground truncate">{prompt.details.location}</p>
-                 {prompt.details.subject2 && <span className="text-xs font-semibold rounded-full bg-secondary text-secondary-foreground px-2 py-0.5 mt-1 inline-block">2 People</span>}
-            </div>
-             <span className={`transition-transform duration-300 text-muted-foreground ${isOpen ? 'rotate-180' : ''}`}>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-            </span>
         </div>
-      </button>
+
+        {/* Info */}
+        <div className="flex-grow min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary truncate max-w-[150px]">{prompt.details.genre || 'Custom'}</span>
+                {prompt.details.year && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground font-medium">{prompt.details.year}</span>}
+            </div>
+            <p className="text-sm text-foreground/90 font-medium truncate pr-4 opacity-90">{prompt.prompt}</p>
+        </div>
+
+        {/* Action Icon */}
+        <div className={`text-muted-foreground transition-transform duration-300 ${isOpen ? 'rotate-180 text-primary' : ''}`}>
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+      </div>
       
-      <div className={`transition-[max-height,padding] duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-[40rem]' : 'max-h-0'}`}>
-        <div className="p-4 pt-0">
-          <div className="border-t border-border pt-4 text-sm space-y-4">
-            <p className="italic text-muted-foreground">"{prompt.prompt}"</p>
-            <div className="flex flex-col sm:flex-row justify-end gap-2">
-                <button
-                    onClick={handleCopy}
-                    className="w-full sm:w-auto px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
-                >
-                    {copyStatus}
-                </button>
+      {/* Expanded Content */}
+      <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-40' : 'max-h-0'}`}>
+        <div className="p-4 pt-0 border-t border-white/5">
+            <p className="text-xs text-muted-foreground italic my-3 line-clamp-2 leading-relaxed">"{prompt.prompt}"</p>
+            <div className="flex gap-2">
                 <button 
                     onClick={() => onSelect(prompt)}
-                    className="w-full sm:w-auto px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-primary text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                    className="flex-1 py-2 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-primary/90 transition-colors"
                 >
-                    Use this Prompt
+                    Reuse This Prompt
+                </button>
+                 <button 
+                    onClick={copyPrompt}
+                    className="px-4 py-2 bg-secondary text-secondary-foreground text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-secondary/80 transition-colors"
+                >
+                    Copy JSON
                 </button>
             </div>
-          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const SkeletonHistoryItem: React.FC = () => (
-    <div className="border border-border rounded-md p-4 bg-card animate-pulse flex items-center gap-4">
-        <div className="w-16 h-16 bg-muted rounded-md shrink-0"></div>
-        <div className="flex-grow space-y-2">
-            <div className="h-4 bg-muted rounded w-3/4"></div>
-            <div className="h-3 bg-muted rounded w-5/6"></div>
-        </div>
-    </div>
-);
-
-
 export const History: React.FC<{ prompts: HistoryEntry[], onSelectPrompt: (prompt: Prompt) => void, isGeneratingNewPrompt?: boolean }> = ({ prompts, onSelectPrompt, isGeneratingNewPrompt = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
-  const showEmptyState = prompts.length === 0 && !isGeneratingNewPrompt;
-
-  const lowercasedFilter = searchTerm.toLowerCase();
   const filteredPrompts = prompts.filter(item => {
-      if (!lowercasedFilter) return true;
-      const { prompt, details } = item.prompt;
-      
-      const detailsString = Object.values(details).flat().join(' ').toLowerCase();
-      
-      return prompt.toLowerCase().includes(lowercasedFilter) || detailsString.includes(lowercasedFilter);
+      if (!searchTerm) return true;
+      const term = searchTerm.toLowerCase();
+      return item.prompt.prompt.toLowerCase().includes(term) || JSON.stringify(item.prompt.details).toLowerCase().includes(term);
   });
 
-  const handleDownloadAll = () => {
-    if (prompts.length === 0) return;
-
-    try {
-      const historyToExport = prompts.map(({ id, prompt }) => ({
-        id,
-        prompt,
-      }));
-      
-      const jsonString = JSON.stringify(historyToExport, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `fotomaydonoz_history_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Failed to download history:", error);
-      alert("An error occurred while preparing the download.");
-    }
-  };
-
   return (
-    <div className="bg-card border border-border rounded-lg shadow-sm">
-       <div className="p-4 sm:p-6 flex flex-wrap justify-between items-center gap-4 border-b border-border">
-            <h2 className="text-lg font-semibold">Prompt History</h2>
-            <div className="flex items-center gap-3">
-                <div className="relative">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input
-                        type="search"
-                        placeholder="Search history..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="bg-background text-foreground border border-input rounded-md shadow-sm focus:ring-ring focus:border-ring sm:text-sm pl-9 pr-4 py-2 w-full sm:w-64 h-10"
-                    />
-                </div>
-                <button
-                    onClick={handleDownloadAll}
-                    disabled={prompts.length === 0}
-                    className="h-10 px-4 text-sm font-semibold rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                    title="Download all history as a JSON file"
-                >
-                    Download All
-                </button>
+    <div className="glass-card rounded-3xl mt-6 p-6">
+       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+            <h2 className="text-lg font-bold text-card-foreground">Recent Creations</h2>
+            <div className="relative w-full sm:w-64">
+                <input
+                    type="search"
+                    placeholder="Search history..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full h-10 bg-secondary/30 border-transparent rounded-xl text-sm pl-10 pr-4 focus:bg-secondary/50 focus:border-primary/30 transition-all outline-none"
+                />
+                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
         </div>
-        <div className="p-4 sm:p-6">
-            {showEmptyState ? (
-                <p className="text-muted-foreground text-sm text-center py-4">Your generated prompts will appear here.</p>
-            ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-2 -mr-2">
-                {isGeneratingNewPrompt && <SkeletonHistoryItem />}
-                {filteredPrompts.map((item) => (
-                    <HistoryItem key={item.id} item={item} onSelect={onSelectPrompt} />
-                ))}
-                {filteredPrompts.length === 0 && !isGeneratingNewPrompt && (
-                    <p className="text-muted-foreground text-sm text-center py-4">No prompts found matching your search.</p>
-                )}
+        
+        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            {prompts.length === 0 && !isGeneratingNewPrompt && (
+                <div className="text-center py-10 opacity-50">
+                    <p className="text-sm font-medium">No history yet. Start creating!</p>
                 </div>
             )}
+            
+            {filteredPrompts.map((item) => (
+                <HistoryItem key={item.id} item={item} onSelect={onSelectPrompt} />
+            ))}
         </div>
     </div>
   );

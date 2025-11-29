@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { Preview } from './components/Preview';
 import { History } from './components/History';
@@ -10,20 +9,21 @@ import { generateEditPrompt, editImageWithGemini, getApiUsage, resetApiUsage } f
 import * as googleDriveService from './services/googleDriveService';
 import type { Prompt, Gender, ImageData, DebugLog, ArtisticStyle, HistoryEntry, TextModel, ImageModel, SubjectSpecificDetails, NegativePrompt } from './types';
 
+// Refined Icons
 const SunIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-all dark:-rotate-90 dark:scale-0"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
 );
 
 const MoonIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
 );
 
 const SettingsIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.15l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.15l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.15l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.15l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
 );
 
 const KeyIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
 );
 
 
@@ -34,27 +34,35 @@ const Header: React.FC<{ theme: Theme; setTheme: (theme: Theme) => void; onOpenS
         setTheme(theme === 'light' ? 'dark' : 'light');
     };
     return (
-      <header className="py-3 px-4 sm:px-6 bg-card/80 backdrop-blur-sm border-b border-border sticky top-0 z-20">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-            Foto Maydonoz
-          </h1>
-          <div className="flex items-center gap-2">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
+                F
+             </div>
+             <h1 className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                Foto<span className="text-primary">Maydonoz</span>
+             </h1>
+          </div>
+          
+          <div className="flex items-center gap-3">
             {isUserKeyActive && (
-                <div title="Using your custom API Key" className="h-9 w-9 flex items-center justify-center text-primary" aria-label="Custom API Key is active">
+                <div title="Using Custom API Key" className="h-9 px-3 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-2 text-xs font-medium" aria-label="Custom API Key is active">
                     <KeyIcon />
+                    <span className="hidden sm:inline">Pro Key Active</span>
                 </div>
             )}
+            <div className="h-6 w-px bg-border/60 mx-1"></div>
             <button
                 onClick={onOpenSettings}
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                className="h-9 w-9 flex items-center justify-center rounded-full bg-secondary/80 text-secondary-foreground hover:bg-secondary hover:scale-105 transition-all duration-200 border border-transparent hover:border-border"
                 aria-label="Open API Key Settings"
             >
                 <SettingsIcon />
             </button>
             <button
                 onClick={toggleTheme}
-                className="h-9 w-9 flex items-center justify-center rounded-full bg-secondary text-secondary-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                className="h-9 w-9 flex items-center justify-center rounded-full bg-secondary/80 text-secondary-foreground hover:bg-secondary hover:scale-105 transition-all duration-200 border border-transparent hover:border-border relative overflow-hidden"
                 aria-label="Toggle theme"
             >
                 <SunIcon />
@@ -72,46 +80,23 @@ const ERROR_MAP: { keywords: string[], message: React.ReactNode | ((isUserKeyAct
         message: (isUserKeyActive: boolean) => (
             isUserKeyActive ? (
                 <>
-                    You have exceeded the API quota for <strong>your provided API key</strong>. Please ensure that billing is enabled for the associated Google Cloud project and that your usage is within the defined limits. For more information, you can review the{' '}
-                    <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-red-100">
-                        rate limits documentation
-                    </a>
-                    {' '}or monitor your project's{' '}
-                    <a href="https://console.cloud.google.com/apis/enabled" target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-red-100">
-                        usage
-                    </a>.
+                    You have exceeded the API quota for <strong>your provided API key</strong>. Please ensure that billing is enabled for the associated Google Cloud project.
                 </>
             ) : (
                 <>
-                    The application's default API key has exceeded its usage quota. This can happen during periods of high traffic. To continue, please enter your own Gemini API key in the settings.
+                    The application's default API key has exceeded its usage quota. To continue, please enter your own Gemini API key in the settings.
                 </>
             )
         )
     },
     {
         keywords: ["503", "overloaded", "unavailable", "internal error"],
-        message: "The AI model is currently experiencing high traffic. We're automatically retrying for you. If the problem persists, please try again in a few moments."
+        message: "The AI model is currently experiencing high traffic. We're automatically retrying for you."
     },
     {
         keywords: ["[safety]", "blocked by the safety filter"],
-        message: "Your request was blocked by the content safety filter. This can sometimes happen with profile pictures or specific prompts. Please try a different image or adjust your prompt."
+        message: "Your request was blocked by the content safety filter. Please try a different image or prompt."
     },
-    {
-        keywords: ["api key not valid", "api_key_invalid", "api key is not configured"],
-        message: "The provided API key is invalid or missing. Please enter a valid key in the settings, or clear it to use the default."
-    },
-    {
-        keywords: ["invalid json", "unexpected format", "failed to parse"],
-        message: "The AI generated an invalid response, which can be a temporary issue. Please try your request again."
-    },
-    {
-        keywords: ["rpc failed", "network error"],
-        message: "A network error occurred. Please check your internet connection and try again. The service might be temporarily unavailable."
-    },
-    {
-        keywords: ["no image was generated by the model"],
-        message: "The AI did not generate an image for this prompt. This can happen occasionally. Please try again, perhaps with a slightly different prompt."
-    }
 ];
 
 type FailedAction = 
@@ -171,7 +156,6 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
   
-  // Load user API key from local storage on initial render
   useEffect(() => {
     const savedKey = localStorage.getItem('userApiKey');
     if (savedKey) {
@@ -201,13 +185,9 @@ const App: React.FC = () => {
     }
   }, [promptHistory]);
 
-  // Google Drive initialization
   useEffect(() => {
     const initializeGapi = async () => {
-      if (!googleDriveService.isDriveConfigured) {
-        console.warn("Google Drive feature is disabled because no Client ID is configured.");
-        return;
-      }
+      if (!googleDriveService.isDriveConfigured) return;
       await googleDriveService.loadGapiScript();
       await googleDriveService.loadGisScript();
       await googleDriveService.gapiInit();
@@ -242,14 +222,8 @@ const App: React.FC = () => {
         errorMessage = e.message;
     } else if (typeof e === 'string') {
         errorMessage = e;
-    } else if (e && typeof e === 'object' && 'message' in e && typeof e.message === 'string') {
-        errorMessage = e.message;
     } else {
-        try {
-            errorMessage = JSON.stringify(e);
-        } catch {
-            errorMessage = 'An unidentifiable error occurred.';
-        }
+        errorMessage = 'An unidentifiable error occurred.';
     }
 
     const lowerCaseMessage = errorMessage.toLowerCase();
@@ -267,18 +241,17 @@ const App: React.FC = () => {
             finalError = matchedError.message;
         }
     } else {
-        finalError = `An unexpected issue occurred. Please see details below. \n\nDetails: ${errorMessage}`;
+        finalError = `Unexpected error: ${errorMessage}`;
     }
 
     setError(finalError);
   };
 
   const performImageEdit = useCallback(async (prompt: Prompt, quality: string, aspectRatio: string, numImages: number, removeBackground: boolean, selectedImageModel: ImageModel) => {
-    // Enforce API key for Gemini 3 Pro Image
     if (selectedImageModel === 'gemini-3-pro-image-preview' && !userApiKey) {
         setError(
             <>
-                The <strong>Gemini 3 Pro Image</strong> model requires your own API key. Please add your key in the settings or switch to the Flash model.
+                The <strong>Gemini 3 Pro Image</strong> model requires your own API key.
                 <br />
                 <button onClick={() => setIsSettingsModalOpen(true)} className="mt-2 underline text-primary hover:text-primary/80">
                     Open Settings
@@ -299,9 +272,6 @@ const App: React.FC = () => {
         const imageData1 = { base64: originalImage1.base64, mimeType: originalImage1.mimeType };
         const imageData2 = originalImage2 ? { base64: originalImage2.base64, mimeType: originalImage2.mimeType } : null;
 
-        const requestPayload = { imageData1: '...', imageData2: imageData2 ? '...' : null, prompt, quality, aspectRatio, numImages, removeBackground, model: selectedImageModel };
-        addLog('REQUEST', { endpoint: `editImageWithGemini (x${numImages})`, payload: requestPayload });
-        
         const imagePromises = Array(numImages).fill(0).map(() => 
             editImageWithGemini(
               imageData1,
@@ -315,9 +285,6 @@ const App: React.FC = () => {
             )
         );
         editedImageResults = await Promise.all(imagePromises);
-        addLog('RESPONSE', { endpoint: `editImageWithGemini (x${numImages})`, result: `${numImages} images received` });
-    } else {
-        addLog('REQUEST', { endpoint: `generatePromptOnly`, payload: { prompt } });
     }
 
     setEditedImages(editedImageResults);
@@ -355,9 +322,8 @@ const App: React.FC = () => {
       const aspectRatio = '1:1';
 
       try {
-          addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender1, gender2, quality, aspectRatio, style, textModel, subject1Details, subject2Details, negativePrompt, cameraAngle } });
+          addLog('REQUEST', { endpoint: 'generateEditPrompt', payload: { gender1, gender2, style } });
           const newPrompt = await generateEditPrompt(gender1, gender2, quality, aspectRatio, style, textModel, userApiKey, subject1Details, subject2Details, negativePrompt, cameraAngle);
-          addLog('RESPONSE', { endpoint: 'generateEditPrompt', prompt: newPrompt });
           await performImageEdit(newPrompt, quality, aspectRatio, numImages, removeBackground, imageModel);
       } catch(e) {
           handleGenericError(e, 'handleGenerateRandom');
@@ -372,7 +338,7 @@ const App: React.FC = () => {
       const imagesToGenerate = numImagesOverride ?? (isJsonOnly ? 0 : numImages);
       
       if (!originalImage1 && imagesToGenerate > 0) {
-          setError("Please upload at least the first image to use a historical prompt.");
+          setError("Please upload at least the first image.");
           window.scrollTo(0, 0); 
           return;
       }
@@ -396,22 +362,13 @@ const App: React.FC = () => {
   }, [originalImage1, numImages, isJsonOnly, performImageEdit, removeBackground, userApiKey, imageModel]);
 
   const handleRetryWithSamePrompt = useCallback(async () => {
-    if (!currentPrompt) {
-        setError("Cannot retry: No active prompt found. Please generate an image first.");
-        return;
-    }
-    
+    if (!currentPrompt) return;
     setIsLoading(true);
     setError(null);
     setLastFailedAction(null);
     setEditedImages(null);
-    
-    const imagesToGenerate = isJsonOnly ? 0 : numImages;
-    const quality = 'standard';
-    const aspectRatio = '1:1';
-
     try {
-        await performImageEdit(currentPrompt, quality, aspectRatio, imagesToGenerate, removeBackground, imageModel);
+        await performImageEdit(currentPrompt, 'standard', '1:1', isJsonOnly ? 0 : numImages, removeBackground, imageModel);
     } catch(e) {
         handleGenericError(e, 'handleRetryWithSamePrompt');
         setLastFailedAction({ type: 'retrySame', payload: {} });
@@ -442,40 +399,23 @@ const App: React.FC = () => {
   };
 
   const handleSignIn = () => {
-    if (gTokenClient) {
-      googleDriveService.requestAccessToken(gTokenClient);
-    } else {
-      alert("Google Drive feature is not configured. A developer needs to provide a Google Cloud Client ID.");
-    }
+    if (gTokenClient) googleDriveService.requestAccessToken(gTokenClient);
   };
 
   const handleSaveToDrive = async () => {
-    if (!editedImages || editedImages.length === 0 || !currentPrompt) {
-      alert("No edited images to save.");
-      return;
-    }
-
+    if (!editedImages || editedImages.length === 0 || !currentPrompt) return;
     if (!isSignedIn) {
       handleSignIn();
       return;
     }
-    
     setIsSavingToDrive(true);
     try {
       const batchId = `nb-${new Date().getTime()}`;
-      const uploadPromises = editedImages.map((image, index) =>
-        googleDriveService.uploadImageAndPrompt(
-          image,
-          currentPrompt,
-          `${batchId}_${index + 1}`
-        )
-      );
-      await Promise.all(uploadPromises);
-      alert(`Successfully saved ${editedImages.length} images to Google Drive!`);
+      await Promise.all(editedImages.map((image, index) => googleDriveService.uploadImageAndPrompt(image, currentPrompt, `${batchId}_${index + 1}`)));
+      alert(`Saved ${editedImages.length} images to Drive!`);
     } catch (error) {
-      console.error("Google Drive upload failed:", error);
-      const errorMessage = (error as Error).message || 'An unknown error occurred.';
-      alert(`Failed to save to Google Drive. ${errorMessage}`);
+      console.error("Drive upload failed:", error);
+      alert(`Failed to save to Drive.`);
     } finally {
       setIsSavingToDrive(false);
     }
@@ -506,8 +446,8 @@ const App: React.FC = () => {
     <DebugContext.Provider value={{ logs, addLog }}>
       <div className="flex flex-col min-h-screen">
         <Header theme={theme} setTheme={setTheme} onOpenSettings={handleOpenSettings} isUserKeyActive={!!userApiKey} />
-        <main className="container mx-auto p-4 sm:p-6 flex-grow w-full">
-          <div className="space-y-6 lg:space-y-8">
+        <main className="container mx-auto p-4 sm:p-6 lg:p-8 mt-20 flex-grow w-full max-w-7xl animate-fade-in">
+          <div className="flex flex-col gap-8">
             <PromptCustomizer 
               onGenerateRandom={handleGenerateRandom}
               onImageUpload={handleImageUpload}
@@ -526,25 +466,27 @@ const App: React.FC = () => {
               setImageModel={setImageModel}
             />
 
-            <div className="space-y-6">
+            <div className="flex flex-col gap-6">
               {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive-foreground p-4 rounded-lg flex items-start gap-3" role="alert">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                    <div className="flex-grow">
-                        <h3 className="font-semibold">An Error Occurred</h3>
-                        <div className="text-sm text-destructive-foreground/80 whitespace-pre-wrap mt-1">{error}</div>
-                        <div className="mt-3 flex items-center gap-3">
+                <div className="glass-card border-l-4 border-destructive p-4 rounded-xl flex items-start gap-3 shadow-lg animate-fade-in" role="alert">
+                    <div className="p-2 bg-destructive/10 rounded-full text-destructive">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </div>
+                    <div className="flex-grow pt-1">
+                        <h3 className="font-bold text-foreground">Something went wrong</h3>
+                        <div className="text-sm text-muted-foreground mt-1 leading-relaxed">{error}</div>
+                        <div className="mt-4 flex items-center gap-3">
                             {lastFailedAction && (
                                 <button
                                     onClick={handleRetry}
-                                    className="px-3 py-1.5 text-sm font-semibold rounded-md transition-colors bg-destructive text-destructive-foreground hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-destructive focus:ring-offset-2 focus:ring-offset-background"
+                                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all shadow-md active:scale-95"
                                 >
-                                    Retry
+                                    Retry Action
                                 </button>
                             )}
                             <button
                                 onClick={() => { setError(null); setLastFailedAction(null); }}
-                                className="px-3 py-1.5 text-sm font-medium rounded-md transition-colors border border-destructive/30 text-destructive-foreground/80 hover:bg-destructive/20 focus:outline-none focus:ring-2 focus:ring-destructive focus:ring-offset-2 focus:ring-offset-background"
+                                className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg border border-border bg-transparent hover:bg-muted text-foreground transition-all"
                             >
                                 Dismiss
                             </button>
@@ -552,6 +494,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
               )}
+              
               <Preview
                 editedImages={editedImages}
                 isLoading={isLoading || isGeneratingNewPrompt}
@@ -564,6 +507,7 @@ const App: React.FC = () => {
                 isDriveConfigured={googleDriveService.isDriveConfigured}
                 onRetryWithSamePrompt={handleRetryWithSamePrompt}
               />
+              
               <History prompts={promptHistory} onSelectPrompt={handleUseHistoryPrompt} isGeneratingNewPrompt={isGeneratingNewPrompt} />
             </div>
           </div>

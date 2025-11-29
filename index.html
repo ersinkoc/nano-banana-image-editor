@@ -7,61 +7,114 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
     <style>
       :root {
-        --background: 220 60% 97%;
-        --foreground: 225 30% 20%;
-        --card: 220 60% 100%;
-        --card-foreground: 225 30% 20%;
-        --popover: 220 60% 100%;
-        --popover-foreground: 225 30% 20%;
-        --primary: 250 80% 60%;
-        --primary-foreground: 210 40% 98%;
-        --secondary: 220 50% 92%;
-        --secondary-foreground: 225 30% 30%;
-        --muted: 220 50% 92%;
-        --muted-foreground: 225 20% 55%;
-        --accent: 220 50% 88%;
-        --accent-foreground: 225 30% 25%;
-        --destructive: 0 72% 51%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 220 30% 88%;
-        --input: 220 30% 88%;
-        --ring: 250 80% 65%;
-        --radius: 0.5rem;
+        /* Light Theme - Soft & Modern */
+        --background: 260 20% 98%;
+        --foreground: 260 10% 15%;
+        --card: 0 0% 100%;
+        --card-foreground: 260 10% 15%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 260 10% 15%;
+        --primary: 265 85% 55%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 260 20% 96%;
+        --secondary-foreground: 265 30% 30%;
+        --muted: 260 20% 96%;
+        --muted-foreground: 260 10% 55%;
+        --accent: 265 85% 96%;
+        --accent-foreground: 265 85% 35%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 260 20% 92%;
+        --input: 260 20% 92%;
+        --ring: 265 85% 55%;
+        --radius: 1rem;
       }
+      
       .dark {
-        --background: 225 30% 10%;
-        --foreground: 220 40% 90%;
-        --card: 225 30% 15%;
-        --card-foreground: 220 40% 90%;
-        --popover: 225 30% 15%;
-        --popover-foreground: 220 40% 90%;
-        --primary: 250 80% 70%;
-        --primary-foreground: 250 85% 15%;
-        --secondary: 225 25% 22%;
-        --secondary-foreground: 220 40% 90%;
-        --muted: 225 25% 22%;
-        --muted-foreground: 220 25% 65%;
-        --accent: 225 25% 28%;
-        --accent-foreground: 220 40% 95%;
-        --destructive: 0 63% 45%;
-        --destructive-foreground: 210 40% 98%;
-        --border: 225 25% 22%;
-        --input: 225 25% 28%;
-        --ring: 250 80% 70%;
+        /* Dark Theme - Cyberpunk/Deep Space */
+        --background: 265 40% 5%;
+        --foreground: 260 10% 95%;
+        --card: 265 30% 10%;
+        --card-foreground: 260 10% 95%;
+        --popover: 265 30% 10%;
+        --popover-foreground: 260 10% 95%;
+        --primary: 265 90% 65%;
+        --primary-foreground: 265 40% 5%;
+        --secondary: 265 30% 15%;
+        --secondary-foreground: 260 10% 90%;
+        --muted: 265 30% 15%;
+        --muted-foreground: 265 10% 65%;
+        --accent: 265 70% 25%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 0 62% 30%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 265 30% 20%;
+        --input: 265 30% 20%;
+        --ring: 265 90% 65%;
       }
+
       * {
         border-color: hsl(var(--border));
       }
+      
       body {
         background-color: hsl(var(--background));
         color: hsl(var(--foreground));
+        font-family: 'Plus Jakarta Sans', sans-serif;
         min-height: 100vh;
-        font-feature-settings: "rlig" 1, "calt" 1;
+        overflow-x: hidden;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        font-family: 'Outfit', sans-serif;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted-foreground) / 0.3);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground) / 0.5);
+      }
+
+      /* Background Gradient Mesh */
+      .bg-mesh {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
+        background: 
+          radial-gradient(at 0% 0%, hsla(265, 85%, 65%, 0.15) 0px, transparent 50%),
+          radial-gradient(at 100% 0%, hsla(320, 85%, 65%, 0.15) 0px, transparent 50%),
+          radial-gradient(at 100% 100%, hsla(200, 85%, 65%, 0.15) 0px, transparent 50%),
+          radial-gradient(at 0% 100%, hsla(280, 85%, 65%, 0.15) 0px, transparent 50%);
+        pointer-events: none;
+      }
+      
+      .glass-card {
+        background: hsl(var(--card) / 0.7);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid hsl(var(--border) / 0.5);
+      }
+      
+      .input-glow:focus-within {
+        box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring) / 0.5);
       }
     </style>
     <script>
@@ -70,7 +123,8 @@
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+              sans: ['Plus Jakarta Sans', 'sans-serif'],
+              display: ['Outfit', 'sans-serif'],
             },
             colors: {
               border: "hsl(var(--border))",
@@ -114,13 +168,22 @@
             },
             keyframes: {
               'fade-in': {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
               },
+              'pulse-glow': {
+                '0%, 100%': { opacity: '1', boxShadow: '0 0 15px hsl(var(--primary) / 0.5)' },
+                '50%': { opacity: '.8', boxShadow: '0 0 5px hsl(var(--primary) / 0.2)' },
+              }
             },
             animation: {
-              'fade-in': 'fade-in 0.3s ease-out',
+              'fade-in': 'fade-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
+              'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             },
+            boxShadow: {
+              'glow': '0 0 20px -5px hsl(var(--primary) / 0.3)',
+              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+            }
           },
         },
       }
@@ -138,6 +201,7 @@
 </script>
 </head>
   <body>
+    <div class="bg-mesh"></div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
