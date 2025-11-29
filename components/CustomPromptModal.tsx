@@ -187,8 +187,8 @@ export const CustomPromptModal: React.FC<CustomPromptModalProps> = ({ isOpen, on
     if (details.subject2 && !details.subject2.costume && !details.subject2.subject_action && !details.subject2.subject_expression) {
         delete finalDetails.subject2;
     }
-    const finalPromptText = createPromptFromDetails(finalDetails);
-    const customPrompt: Prompt = { prompt: finalPromptText, details: finalDetails };
+    // Use the potentially edited generatedPrompt instead of recreating it from details
+    const customPrompt: Prompt = { prompt: generatedPrompt, details: finalDetails };
     onGenerate(customPrompt);
     onClose();
   };

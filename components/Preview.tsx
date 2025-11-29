@@ -175,6 +175,7 @@ const PromptDetailsDisplay: React.FC<{
     isLoading: boolean,
 }> = ({ prompt, editedImages, onSaveToDrive, onSignIn, isSignedIn, isGapiReady, isSavingToDrive, isDriveConfigured, onRetryWithSamePrompt, isLoading }) => {
     const hasImages = editedImages && editedImages.length > 0;
+    const [copyJsonLabel, setCopyJsonLabel] = useState('Copy JSON');
     
     const handleDriveClick = () => isSignedIn ? onSaveToDrive() : onSignIn();
     
@@ -198,6 +199,12 @@ const PromptDetailsDisplay: React.FC<{
         });
     };
 
+    const handleCopyJson = () => {
+        navigator.clipboard.writeText(JSON.stringify(prompt, null, 2));
+        setCopyJsonLabel('Copied!');
+        setTimeout(() => setCopyJsonLabel('Copy JSON'), 2000);
+    };
+
     const isAnyActionInProgress = isLoading || isSavingToDrive;
     const { details } = prompt;
 
@@ -215,6 +222,14 @@ const PromptDetailsDisplay: React.FC<{
                         className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all disabled:opacity-50"
                     >
                         {isLoading ? 'Wait...' : 'Regenerate'}
+                    </button>
+
+                    <button
+                        onClick={handleCopyJson}
+                        disabled={isAnyActionInProgress}
+                        className="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all disabled:opacity-50"
+                    >
+                        {copyJsonLabel}
                     </button>
                     
                     {hasImages && (
